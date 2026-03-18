@@ -28,16 +28,16 @@ func (r *Reconciler) createOrApplyValidatingWebhookConfiguration(trustManager *v
 		return common.FromClientError(err, "failed to check if validatingwebhookconfiguration %q exists", resourceName)
 	}
 	if exists && !webhookConfigModified(desired, existing) {
-		r.log.V(4).Info("validatingwebhookconfiguration already matches desired state, skipping apply", "name", resourceName)
+		r.log.V(4).Info("validatingwebhookconfiguration resource exists and is in desired state", "name", resourceName)
 		return nil
 	}
 
+	r.log.V(2).Info("validatingwebhookconfiguration resource has been modified, updating to desired state", "name", resourceName)
 	if err := r.Patch(r.ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
 		return common.FromClientError(err, "failed to apply validatingwebhookconfiguration %q", resourceName)
 	}
 
 	r.eventRecorder.Eventf(trustManager, corev1.EventTypeNormal, "Reconciled", "validatingwebhookconfiguration resource %s applied", resourceName)
-	r.log.V(2).Info("applied validatingwebhookconfiguration", "name", resourceName)
 	return nil
 }
 

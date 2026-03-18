@@ -7,16 +7,12 @@ import (
 	"os"
 	"reflect"
 	"strings"
-	"unsafe"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	metav1validation "k8s.io/apimachinery/pkg/apis/meta/v1/validation"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/validation/field"
-	"k8s.io/kubernetes/pkg/apis/core"
-	corevalidation "k8s.io/kubernetes/pkg/apis/core/validation"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
@@ -188,7 +184,7 @@ func updateResourceRequirement(deployment *appsv1.Deployment, istiocsr *v1alpha1
 	if reflect.ValueOf(istiocsr.Spec.IstioCSRConfig.Resources).IsZero() {
 		return nil
 	}
-	if err := validateResourceRequirements(istiocsr.Spec.IstioCSRConfig.Resources,
+	if err := common.ValidateResourceRequirements(istiocsr.Spec.IstioCSRConfig.Resources,
 		field.NewPath("spec", "istioCSRConfig")); err != nil {
 		return err
 	}
@@ -202,7 +198,7 @@ func updateAffinityRules(deployment *appsv1.Deployment, istiocsr *v1alpha1.Istio
 	if istiocsr.Spec.IstioCSRConfig.Affinity == nil {
 		return nil
 	}
-	if err := validateAffinityRules(istiocsr.Spec.IstioCSRConfig.Affinity,
+	if err := common.ValidateAffinityRules(istiocsr.Spec.IstioCSRConfig.Affinity,
 		field.NewPath("spec", "istioCSRConfig")); err != nil {
 		return err
 	}
@@ -214,7 +210,7 @@ func updatePodTolerations(deployment *appsv1.Deployment, istiocsr *v1alpha1.Isti
 	if istiocsr.Spec.IstioCSRConfig.Tolerations == nil {
 		return nil
 	}
-	if err := validateTolerationsConfig(istiocsr.Spec.IstioCSRConfig.Tolerations,
+	if err := common.ValidateTolerationsConfig(istiocsr.Spec.IstioCSRConfig.Tolerations,
 		field.NewPath("spec", "istioCSRConfig")); err != nil {
 		return err
 	}
@@ -226,7 +222,7 @@ func updateNodeSelector(deployment *appsv1.Deployment, istiocsr *v1alpha1.IstioC
 	if istiocsr.Spec.IstioCSRConfig.NodeSelector == nil {
 		return nil
 	}
-	if err := validateNodeSelectorConfig(istiocsr.Spec.IstioCSRConfig.NodeSelector,
+	if err := common.ValidateNodeSelectorConfig(istiocsr.Spec.IstioCSRConfig.NodeSelector,
 		field.NewPath("spec", "istioCSRConfig")); err != nil {
 		return err
 	}
@@ -642,25 +638,3 @@ func (r *Reconciler) updateWatchLabel(obj client.Object, istiocsr *v1alpha1.Isti
 	return nil
 }
 
-// validateNodeSelectorConfig validates the NodeSelector configuration.
-func validateNodeSelectorConfig(nodeSelector map[string]string, fldPath *field.Path) error {
-	return metav1validation.ValidateLabels(nodeSelector, fldPath.Child("nodeSelector")).ToAggregate()
-}
-
-func validateTolerationsConfig(tolerations []corev1.Toleration, fldPath *field.Path) error {
-	// convert corev1.Tolerations to core.Tolerations, required for validation.
-	convTolerations := *(*[]core.Toleration)(unsafe.Pointer(&tolerations))
-	return corevalidation.ValidateTolerations(convTolerations, fldPath.Child("tolerations")).ToAggregate()
-}
-
-func validateResourceRequirements(requirements corev1.ResourceRequirements, fldPath *field.Path) error {
-	// convert corev1.ResourceRequirements to core.ResourceRequirements, required for validation.
-	convRequirements := *(*core.ResourceRequirements)(unsafe.Pointer(&requirements))
-	return corevalidation.ValidateContainerResourceRequirements(&convRequirements, nil, fldPath.Child("resources"), corevalidation.PodValidationOptions{}).ToAggregate()
-}
-
-func validateAffinityRules(affinity *corev1.Affinity, fldPath *field.Path) error {
-	// convert corev1.Affinity to core.Affinity, required for validation.
-	convAffinity := (*core.Affinity)(unsafe.Pointer(affinity))
-	return validateAffinity(convAffinity, corevalidation.PodValidationOptions{}, fldPath.Child("affinity")).ToAggregate()
-}

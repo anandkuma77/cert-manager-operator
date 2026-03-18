@@ -32,16 +32,16 @@ func (r *Reconciler) createOrApplyDeployment(trustManager *v1alpha1.TrustManager
 		return common.FromClientError(err, "failed to check if deployment %q exists", deploymentName)
 	}
 	if exists && !deploymentModified(desired, existing) {
-		r.log.V(4).Info("deployment already matches desired state, skipping apply", "name", deploymentName)
+		r.log.V(4).Info("deployment resource exists and is in desired state", "name", deploymentName)
 		return nil
 	}
 
+	r.log.V(2).Info("deployment resource has been modified, updating to desired state", "name", deploymentName)
 	if err := r.Patch(r.ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
 		return common.FromClientError(err, "failed to apply deployment %q", deploymentName)
 	}
 
 	r.eventRecorder.Eventf(trustManager, corev1.EventTypeNormal, "Reconciled", "deployment resource %s applied", deploymentName)
-	r.log.V(2).Info("applied deployment", "name", deploymentName)
 	return nil
 }
 
@@ -66,10 +66,18 @@ func (r *Reconciler) getDeploymentObject(trustManager *v1alpha1.TrustManager, re
 		return nil, common.NewIrrecoverableError(err, "failed to update trust-manager image")
 	}
 
-	updateResourceRequirements(deployment, trustManager)
-	updateAffinityRules(deployment, trustManager)
-	updatePodTolerations(deployment, trustManager)
-	updateNodeSelector(deployment, trustManager)
+	if err := updateResourceRequirements(deployment, trustManager); err != nil {
+		return nil, err
+	}
+	if err := updateAffinityRules(deployment, trustManager); err != nil {
+		return nil, err
+	}
+	if err := updatePodTolerations(deployment, trustManager); err != nil {
+		return nil, err
+	}
+	if err := updateNodeSelector(deployment, trustManager); err != nil {
+		return nil, err
+	}
 
 	return deployment, nil
 }
@@ -146,35 +154,50 @@ func updateImage(deployment *appsv1.Deployment) error {
 	return nil
 }
 
-func updateResourceRequirements(deployment *appsv1.Deployment, trustManager *v1alpha1.TrustManager) {
+func updateResourceRequirements(deployment *appsv1.Deployment, trustManager *v1alpha1.TrustManager) error {
 	resources := trustManager.Spec.TrustManagerConfig.Resources
 	if len(resources.Limits) == 0 && len(resources.Requests) == 0 {
-		return
+		return nil
+	}
+	if err := common.ValidateResourceRequirements(resources, trustManagerConfigFieldPath); err != nil {
+		return err
 	}
 	for i := range deployment.Spec.Template.Spec.Containers {
 		if deployment.Spec.Template.Spec.Containers[i].Name == trustManagerContainerName {
 			deployment.Spec.Template.Spec.Containers[i].Resources = resources
 		}
 	}
+	return nil
 }
 
-func updateAffinityRules(deployment *appsv1.Deployment, trustManager *v1alpha1.TrustManager) {
+func updateAffinityRules(deployment *appsv1.Deployment, trustManager *v1alpha1.TrustManager) error {
 	if trustManager.Spec.TrustManagerConfig.Affinity == nil {
-		return
+		return nil
+	}
+	if err := common.ValidateAffinityRules(trustManager.Spec.TrustManagerConfig.Affinity, trustManagerConfigFieldPath); err != nil {
+		return err
 	}
 	deployment.Spec.Template.Spec.Affinity = trustManager.Spec.TrustManagerConfig.Affinity
+	return nil
 }
 
-func updatePodTolerations(deployment *appsv1.Deployment, trustManager *v1alpha1.TrustManager) {
+func updatePodTolerations(deployment *appsv1.Deployment, trustManager *v1alpha1.TrustManager) error {
 	if trustManager.Spec.TrustManagerConfig.Tolerations == nil {
-		return
+		return nil
+	}
+	if err := common.ValidateTolerationsConfig(trustManager.Spec.TrustManagerConfig.Tolerations, trustManagerConfigFieldPath); err != nil {
+		return err
 	}
 	deployment.Spec.Template.Spec.Tolerations = trustManager.Spec.TrustManagerConfig.Tolerations
+	return nil
 }
 
-func updateNodeSelector(deployment *appsv1.Deployment, trustManager *v1alpha1.TrustManager) {
+func updateNodeSelector(deployment *appsv1.Deployment, trustManager *v1alpha1.TrustManager) error {
 	if trustManager.Spec.TrustManagerConfig.NodeSelector == nil {
-		return
+		return nil
+	}
+	if err := common.ValidateNodeSelectorConfig(trustManager.Spec.TrustManagerConfig.NodeSelector, trustManagerConfigFieldPath); err != nil {
+		return err
 	}
 	if deployment.Spec.Template.Spec.NodeSelector == nil {
 		deployment.Spec.Template.Spec.NodeSelector = make(map[string]string)
@@ -184,6 +207,7 @@ func updateNodeSelector(deployment *appsv1.Deployment, trustManager *v1alpha1.Tr
 	for k, v := range trustManager.Spec.TrustManagerConfig.NodeSelector {
 		deployment.Spec.Template.Spec.NodeSelector[k] = v
 	}
+	return nil
 }
 
 func updateServiceAccountName(deployment *appsv1.Deployment) {

@@ -23,16 +23,16 @@ func (r *Reconciler) createOrApplyServiceAccounts(trustManager *v1alpha1.TrustMa
 		return common.FromClientError(err, "failed to check if serviceaccount %q exists", serviceAccountName)
 	}
 	if exists && !serviceAccountModified(desired, existing) {
-		r.log.V(4).Info("serviceaccount already matches desired state, skipping apply", "name", serviceAccountName)
+		r.log.V(4).Info("serviceaccount resource exists and is in desired state", "name", serviceAccountName)
 		return nil
 	}
 
+	r.log.V(2).Info("serviceaccount resource has been modified, updating to desired state", "name", serviceAccountName)
 	if err := r.Patch(r.ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
 		return common.FromClientError(err, "failed to apply serviceaccount %q", serviceAccountName)
 	}
 
 	r.eventRecorder.Eventf(trustManager, corev1.EventTypeNormal, "Reconciled", "serviceaccount resource %s applied", serviceAccountName)
-	r.log.V(2).Info("applied serviceaccount", "name", serviceAccountName)
 	return nil
 }
 

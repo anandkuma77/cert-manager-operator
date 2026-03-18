@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/utils/ptr"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -121,6 +122,19 @@ func TestServiceAccountReconciliation(t *testing.T) {
 					tm := testTrustManager().WithAnnotations(map[string]string{"user-annotation": "original"}).Build()
 					sa := r.getServiceAccountObject(getResourceLabels(tm), getResourceAnnotations(tm))
 					sa.Annotations["user-annotation"] = "tampered"
+					sa.DeepCopyInto(obj.(*corev1.ServiceAccount))
+					return true, nil
+				})
+			},
+			wantExistsCount: 1,
+			wantPatchCount:  1,
+		},
+		{
+			name: "apply when automountServiceAccountToken is modified",
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+					sa := r.getServiceAccountObject(testResourceLabels(), testResourceAnnotations())
+					sa.AutomountServiceAccountToken = ptr.To(false)
 					sa.DeepCopyInto(obj.(*corev1.ServiceAccount))
 					return true, nil
 				})

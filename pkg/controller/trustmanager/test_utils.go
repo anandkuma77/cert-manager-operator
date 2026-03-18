@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/record"
 
@@ -45,6 +46,26 @@ func (b *trustManagerBuilder) WithLabels(labels map[string]string) *trustManager
 
 func (b *trustManagerBuilder) WithAnnotations(annotations map[string]string) *trustManagerBuilder {
 	b.Spec.ControllerConfig.Annotations = annotations
+	return b
+}
+
+func (b *trustManagerBuilder) WithResources(resources corev1.ResourceRequirements) *trustManagerBuilder {
+	b.Spec.TrustManagerConfig.Resources = resources
+	return b
+}
+
+func (b *trustManagerBuilder) WithTolerations(tolerations []corev1.Toleration) *trustManagerBuilder {
+	b.Spec.TrustManagerConfig.Tolerations = tolerations
+	return b
+}
+
+func (b *trustManagerBuilder) WithNodeSelector(nodeSelector map[string]string) *trustManagerBuilder {
+	b.Spec.TrustManagerConfig.NodeSelector = nodeSelector
+	return b
+}
+
+func (b *trustManagerBuilder) WithAffinity(affinity *corev1.Affinity) *trustManagerBuilder {
+	b.Spec.TrustManagerConfig.Affinity = affinity
 	return b
 }
 

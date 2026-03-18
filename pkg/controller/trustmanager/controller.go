@@ -3,7 +3,6 @@ package trustmanager
 import (
 	"context"
 	"fmt"
-	"reflect"
 
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -178,10 +177,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 }
 
 func (r *Reconciler) processReconcileRequest(trustManager *v1alpha1.TrustManager, req types.NamespacedName) (ctrl.Result, error) {
-	if !containsProcessedAnnotation(trustManager) && reflect.DeepEqual(trustManager.Status, v1alpha1.TrustManagerStatus{}) {
-		r.log.V(1).Info("starting reconciliation of newly created trustmanager", "name", trustManager.GetName())
-	}
-
 	reconcileErr := r.reconcileTrustManagerDeployment(trustManager)
 	if reconcileErr != nil {
 		r.log.Error(reconcileErr, "failed to reconcile TrustManager deployment", "request", req)

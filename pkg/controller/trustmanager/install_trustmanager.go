@@ -60,12 +60,6 @@ func (r *Reconciler) reconcileTrustManagerDeployment(trustManager *v1alpha1.Trus
 		return fmt.Errorf("failed to update status observed state: %w", err)
 	}
 
-	if addProcessedAnnotation(trustManager) {
-		if err := r.UpdateWithRetry(r.ctx, trustManager); err != nil {
-			return fmt.Errorf("failed to update processed annotation to %s: %w", trustManager.GetName(), err)
-		}
-	}
-
 	r.log.V(4).Info("finished reconciliation of trustmanager", "name", trustManager.GetName())
 	return nil
 }

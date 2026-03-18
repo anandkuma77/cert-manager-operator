@@ -2,6 +2,8 @@ package trustmanager
 
 import (
 	"testing"
+
+	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 )
 
 func TestGetTrustNamespace(t *testing.T) {
@@ -106,6 +108,53 @@ func TestGetResourceAnnotations(t *testing.T) {
 					t.Errorf("expected annotation %s=%q, got %q", key, val, annotations[key])
 				}
 			}
+		})
+	}
+}
+
+func TestValidateTrustManagerConfig(t *testing.T) {
+	tests := []struct {
+		name    string
+		tm      *trustManagerBuilder
+		wantErr string
+	}{
+		{
+			name: "valid config with defaults passes",
+			tm:   testTrustManager(),
+		},
+		{
+			name: "empty TrustManagerConfig is rejected",
+			tm: func() *trustManagerBuilder {
+				b := testTrustManager()
+				b.Spec.TrustManagerConfig = v1alpha1.TrustManagerConfig{}
+				return b
+			}(),
+			wantErr: "spec.trustManagerConfig config cannot be empty",
+		},
+		{
+			name: "valid custom labels pass",
+			tm:   testTrustManager().WithLabels(map[string]string{"app.kubernetes.io/team": "platform"}),
+		},
+		{
+			name:    "invalid label key is rejected",
+			tm:      testTrustManager().WithLabels(map[string]string{"invalid/key/with/extra/slash": "val"}),
+			wantErr: `spec.controllerConfig.labels: Invalid value:`,
+		},
+		{
+			name: "valid custom annotations pass",
+			tm:   testTrustManager().WithAnnotations(map[string]string{"example.com/note": "test"}),
+		},
+		{
+			name:    "invalid annotation key is rejected",
+			tm:      testTrustManager().WithAnnotations(map[string]string{"invalid/key/with/extra/slash": "val"}),
+			wantErr: `spec.controllerConfig.annotations: Invalid value:`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateTrustManagerConfig(tt.tm.Build())
+			assertError(t, err, tt.wantErr)
 		})
 	}
 }

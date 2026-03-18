@@ -29,16 +29,16 @@ func (r *Reconciler) createOrApplyIssuer(trustManager *v1alpha1.TrustManager, re
 		return common.FromClientError(err, "failed to check if issuer %q exists", resourceName)
 	}
 	if exists && !issuerModified(desired, existing) {
-		r.log.V(4).Info("issuer already matches desired state, skipping apply", "name", resourceName)
+		r.log.V(4).Info("issuer resource exists and is in desired state", "name", resourceName)
 		return nil
 	}
 
+	r.log.V(2).Info("issuer resource has been modified, updating to desired state", "name", resourceName)
 	if err := r.Patch(r.ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
 		return common.FromClientError(err, "failed to apply issuer %q", resourceName)
 	}
 
 	r.eventRecorder.Eventf(trustManager, corev1.EventTypeNormal, "Reconciled", "issuer resource %s applied", resourceName)
-	r.log.V(2).Info("applied issuer", "name", resourceName)
 	return nil
 }
 
@@ -63,16 +63,16 @@ func (r *Reconciler) createOrApplyCertificate(trustManager *v1alpha1.TrustManage
 		return common.FromClientError(err, "failed to check if certificate %q exists", resourceName)
 	}
 	if exists && !certificateModified(desired, existing) {
-		r.log.V(4).Info("certificate already matches desired state, skipping apply", "name", resourceName)
+		r.log.V(4).Info("certificate resource exists and is in desired state", "name", resourceName)
 		return nil
 	}
 
+	r.log.V(2).Info("certificate resource has been modified, updating to desired state", "name", resourceName)
 	if err := r.Patch(r.ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
 		return common.FromClientError(err, "failed to apply certificate %q", resourceName)
 	}
 
 	r.eventRecorder.Eventf(trustManager, corev1.EventTypeNormal, "Reconciled", "certificate resource %s applied", resourceName)
-	r.log.V(2).Info("applied certificate", "name", resourceName)
 	return nil
 }
 

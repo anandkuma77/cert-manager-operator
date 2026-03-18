@@ -33,16 +33,16 @@ func (r *Reconciler) createOrApplyService(trustManager *v1alpha1.TrustManager, d
 		return common.FromClientError(err, "failed to check if service %q exists", serviceName)
 	}
 	if exists && !serviceModified(desired, existing) {
-		r.log.V(4).Info("service already matches desired state, skipping apply", "name", serviceName)
+		r.log.V(4).Info("service resource exists and is in desired state", "name", serviceName)
 		return nil
 	}
 
+	r.log.V(2).Info("service resource has been modified, updating to desired state", "name", serviceName)
 	if err := r.Patch(r.ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
 		return common.FromClientError(err, "failed to apply service %q", serviceName)
 	}
 
 	r.eventRecorder.Eventf(trustManager, corev1.EventTypeNormal, "Reconciled", "service resource %s applied", serviceName)
-	r.log.V(2).Info("applied service", "name", serviceName)
 	return nil
 }
 

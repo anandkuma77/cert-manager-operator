@@ -56,6 +56,7 @@ var istioCSRManagedResources = []client.Object{
 // These resources will be watched with a label selector filter.
 var trustManagerManagedResources = []client.Object{
 	&certmanagerv1.Certificate{},
+	&certmanagerv1.Issuer{},
 	&appsv1.Deployment{},
 	&rbacv1.ClusterRole{},
 	&rbacv1.ClusterRoleBinding{},

@@ -3,6 +3,8 @@ package trustmanager
 import (
 	"os"
 	"time"
+
+	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
 const (
@@ -11,10 +13,6 @@ const (
 
 	// ControllerName is the name of the controller used in logs and events.
 	ControllerName = trustManagerCommonName + "-controller"
-
-	// controllerProcessedAnnotation is the annotation added to trustmanager resource once after
-	// successful reconciliation by the controller.
-	controllerProcessedAnnotation = "operator.openshift.io/trust-manager-processed"
 
 	// finalizer name for trustmanager.openshift.operator.io resource.
 	finalizer = "trustmanager.openshift.operator.io/" + ControllerName
@@ -55,29 +53,33 @@ const (
 // These must be set explicitly on each resource's .metadata.name and on every
 // field in other resources that references them.
 const (
-	trustManagerServiceAccountName = "trust-manager"
-	trustManagerDeploymentName     = "trust-manager"
+	trustManagerCommonResourceName = "trust-manager"
 
-	trustManagerServiceName        = "trust-manager"
-	trustManagerMetricsServiceName = "trust-manager-metrics"
+	trustManagerServiceAccountName = trustManagerCommonResourceName
+	trustManagerDeploymentName     = trustManagerCommonResourceName
 
-	trustManagerClusterRoleName        = "trust-manager"
-	trustManagerClusterRoleBindingName = "trust-manager"
+	trustManagerServiceName        = trustManagerCommonResourceName
+	trustManagerMetricsServiceName = trustManagerCommonResourceName + "-metrics"
 
-	trustManagerRoleName        = "trust-manager"
-	trustManagerRoleBindingName = "trust-manager"
+	trustManagerClusterRoleName        = trustManagerCommonResourceName
+	trustManagerClusterRoleBindingName = trustManagerCommonResourceName
 
-	trustManagerLeaderElectionRoleName        = "trust-manager:leaderelection"
-	trustManagerLeaderElectionRoleBindingName = "trust-manager:leaderelection"
+	trustManagerRoleName        = trustManagerCommonResourceName
+	trustManagerRoleBindingName = trustManagerCommonResourceName
 
-	trustManagerIssuerName      = "trust-manager"
-	trustManagerCertificateName = "trust-manager"
-	trustManagerTLSSecretName   = "trust-manager-tls"
+	trustManagerLeaderElectionRoleName        = trustManagerCommonResourceName + ":leaderelection"
+	trustManagerLeaderElectionRoleBindingName = trustManagerCommonResourceName + ":leaderelection"
 
-	trustManagerWebhookConfigName = "trust-manager"
+	trustManagerIssuerName      = trustManagerCommonResourceName
+	trustManagerCertificateName = trustManagerCommonResourceName
+	trustManagerTLSSecretName   = trustManagerCommonResourceName + "-tls"
+
+	trustManagerWebhookConfigName = trustManagerCommonResourceName
 )
 
 var (
+	trustManagerConfigFieldPath    = field.NewPath("spec", "trustManagerConfig")
+	controllerConfigFieldPath      = field.NewPath("spec", "controllerConfig")
 	controllerDefaultResourceLabels = map[string]string{
 		"app":                          trustManagerCommonName,
 		"app.kubernetes.io/name":       trustManagerCommonName,

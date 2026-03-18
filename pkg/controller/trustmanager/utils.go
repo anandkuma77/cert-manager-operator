@@ -109,17 +109,20 @@ func (r *Reconciler) removeFinalizer(ctx context.Context, trustManager *v1alpha1
 	return nil
 }
 
-func containsProcessedAnnotation(trustManager *v1alpha1.TrustManager) bool {
-	return common.ContainsAnnotation(trustManager, controllerProcessedAnnotation)
-}
-
-func addProcessedAnnotation(trustManager *v1alpha1.TrustManager) bool {
-	return common.AddAnnotation(trustManager, controllerProcessedAnnotation, "true")
-}
-
 func validateTrustManagerConfig(trustManager *v1alpha1.TrustManager) error {
 	if reflect.ValueOf(trustManager.Spec.TrustManagerConfig).IsZero() {
 		return fmt.Errorf("spec.trustManagerConfig config cannot be empty")
+	}
+
+	if labels := trustManager.Spec.ControllerConfig.Labels; len(labels) > 0 {
+		if err := common.ValidateLabelsConfig(labels, controllerConfigFieldPath); err != nil {
+			return err
+		}
+	}
+	if annotations := trustManager.Spec.ControllerConfig.Annotations; len(annotations) > 0 {
+		if err := common.ValidateAnnotationsConfig(annotations, controllerConfigFieldPath); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -179,15 +182,6 @@ func updateResourceAnnotations(obj client.Object, annotations map[string]string)
 	obj.SetAnnotations(existing)
 }
 
-// updateBindingSubjects sets the ServiceAccount name and namespace on RBAC binding subjects.
-func updateBindingSubjects(subjects []rbacv1.Subject, serviceAccountName, namespace string) {
-	for i := range subjects {
-		if subjects[i].Kind == roleBindingSubjectKind {
-			subjects[i].Name = serviceAccountName
-			subjects[i].Namespace = namespace
-		}
-	}
-}
 
 // managedLabelsModified checks whether all labels present in desired exist
 // with matching values in existing. Extra labels on existing (added by users

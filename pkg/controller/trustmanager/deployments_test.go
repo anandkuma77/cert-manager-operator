@@ -468,6 +468,68 @@ func TestDeploymentReconciliation(t *testing.T) {
 			wantExistsCount: 0,
 			wantPatchCount:  0,
 		},
+		{
+			name:     "invalid toleration config returns error",
+			setImage: true,
+			tmBuilder: testTrustManager().WithTolerations([]corev1.Toleration{
+				{
+					Key:      "key1",
+					Operator: corev1.TolerationOpExists,
+					Value:    "should-be-empty-for-exists",
+				},
+			}),
+			wantErr:         `spec.trustManagerConfig.tolerations[0].operator: Invalid value: "should-be-empty-for-exists": value must be empty when ` + "`operator` is 'Exists'",
+			wantExistsCount: 0,
+			wantPatchCount:  0,
+		},
+		{
+			name:     "invalid nodeSelector config returns error",
+			setImage: true,
+			tmBuilder: testTrustManager().WithNodeSelector(map[string]string{
+				"node/Label/2": "value",
+			}),
+			wantErr:         `spec.trustManagerConfig.nodeSelector: Invalid value: "node/Label/2"`,
+			wantExistsCount: 0,
+			wantPatchCount:  0,
+		},
+		{
+			name:     "invalid affinity config returns error",
+			setImage: true,
+			tmBuilder: testTrustManager().WithAffinity(&corev1.Affinity{
+				NodeAffinity: &corev1.NodeAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
+						NodeSelectorTerms: []corev1.NodeSelectorTerm{
+							{
+								MatchExpressions: []corev1.NodeSelectorRequirement{
+									{
+										Key:      "key",
+										Operator: corev1.NodeSelectorOpIn,
+									},
+								},
+							},
+						},
+					},
+				},
+			}),
+			wantErr:         `spec.trustManagerConfig.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].values: Required value: must be specified when ` + "`operator` is 'In' or 'NotIn'",
+			wantExistsCount: 0,
+			wantPatchCount:  0,
+		},
+		{
+			name:     "invalid resource requirements config returns error",
+			setImage: true,
+			tmBuilder: testTrustManager().WithResources(corev1.ResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceCPU: resource.MustParse("2"),
+				},
+				Limits: corev1.ResourceList{
+					corev1.ResourceCPU: resource.MustParse("1"),
+				},
+			}),
+			wantErr:         `spec.trustManagerConfig.resources.requests: Invalid value: "2": must be less than or equal to cpu limit of 1`,
+			wantExistsCount: 0,
+			wantPatchCount:  0,
+		},
 	}
 
 	for _, tt := range tests {
