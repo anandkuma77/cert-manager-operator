@@ -182,7 +182,6 @@ func updateResourceAnnotations(obj client.Object, annotations map[string]string)
 	obj.SetAnnotations(existing)
 }
 
-
 // managedLabelsModified checks whether all labels present in desired exist
 // with matching values in existing. Extra labels on existing (added by users
 // or other controllers) are allowed and do not count as modified.

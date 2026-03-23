@@ -265,6 +265,10 @@ func (r *Reconciler) assertIssuerRefExists(istiocsr *v1alpha1.IstioCSR) error {
 		return common.NewIrrecoverableError(errInvalidIssuerRefConfig, "spec.istioCSRConfig.certManager.issuerRef uses unsupported ACME issuer")
 	}
 
+	if err := r.updateWatchLabel(obj, istiocsr); err != nil {
+		return common.FromClientError(err, "failed to update watch label on cert-manager issuer %s", istiocsr.Spec.IstioCSRConfig.CertManager.IssuerRef.Name)
+	}
+
 	return nil
 }
 
@@ -637,4 +641,3 @@ func (r *Reconciler) updateWatchLabel(obj client.Object, istiocsr *v1alpha1.Isti
 	}
 	return nil
 }
-

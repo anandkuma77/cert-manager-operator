@@ -57,7 +57,7 @@ func (r *Reconciler) reconcileTrustManagerDeployment(trustManager *v1alpha1.Trus
 	}
 
 	if err := r.updateStatusObservedState(trustManager); err != nil {
-		return fmt.Errorf("failed to update status observed state: %w", err)
+		return common.FromClientError(err, "failed to update status observed state")
 	}
 
 	r.log.V(4).Info("finished reconciliation of trustmanager", "name", trustManager.GetName())

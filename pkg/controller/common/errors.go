@@ -49,7 +49,7 @@ func NewMultipleInstanceError(err error) *ReconcileError {
 	}
 	return &ReconcileError{
 		Reason:  MultipleInstanceError,
-		Message: fmt.Sprint(err.Error()),
+		Message: err.Error(),
 		Err:     err,
 	}
 }
@@ -120,4 +120,9 @@ func IsMultipleInstanceError(err error) bool {
 // Error implements the error interface.
 func (e *ReconcileError) Error() string {
 	return fmt.Sprintf("%s: %s", e.Message, e.Err)
+}
+
+// Unwrap returns the underlying error for error chain traversal.
+func (e *ReconcileError) Unwrap() error {
+	return e.Err
 }

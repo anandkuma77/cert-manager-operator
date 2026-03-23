@@ -78,8 +78,8 @@ const (
 )
 
 var (
-	trustManagerConfigFieldPath    = field.NewPath("spec", "trustManagerConfig")
-	controllerConfigFieldPath      = field.NewPath("spec", "controllerConfig")
+	trustManagerConfigFieldPath     = field.NewPath("spec", "trustManagerConfig")
+	controllerConfigFieldPath       = field.NewPath("spec", "controllerConfig")
 	controllerDefaultResourceLabels = map[string]string{
 		"app":                          trustManagerCommonName,
 		"app.kubernetes.io/name":       trustManagerCommonName,

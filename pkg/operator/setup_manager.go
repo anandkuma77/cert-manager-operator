@@ -54,9 +54,13 @@ var istioCSRManagedResources = []client.Object{
 
 // trustManagerManagedResources defines the resources managed by the TrustManager controller.
 // These resources will be watched with a label selector filter.
+//
+// cert-manager Issuer (and ClusterIssuer, which is never listed here) must not use a
+// managed-resource label selector: IstioCSR reconciles user-created Issuers referenced
+// from the spec, which are not labeled by the operator. Those types are left out of
+// ByObject so they use the manager cache’s default unfiltered informer per GVK.
 var trustManagerManagedResources = []client.Object{
 	&certmanagerv1.Certificate{},
-	&certmanagerv1.Issuer{},
 	&appsv1.Deployment{},
 	&rbacv1.ClusterRole{},
 	&rbacv1.ClusterRoleBinding{},
