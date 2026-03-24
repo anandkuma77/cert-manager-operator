@@ -152,6 +152,8 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&corev1.ConfigMap{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerConfigMapWatchPredicates).
 		WatchesMetadata(&corev1.Secret{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerWatchResourcePredicates).
 		Watches(&networkingv1.NetworkPolicy{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
+		Watches(&certmanagerv1.Issuer{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerWatchResourcePredicates).
+		Watches(&certmanagerv1.ClusterIssuer{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerWatchResourcePredicates).
 		Complete(r)
 }
 

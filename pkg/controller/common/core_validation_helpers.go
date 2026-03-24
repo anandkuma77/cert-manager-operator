@@ -1,4 +1,4 @@
-package istiocsr
+package common
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -13,6 +13,7 @@ import (
  * Methods here are the replicates of the methods defined in k8s.io/kubernetes/pkg/apis/core/validation package, which
  * is done just because of the lack of better alternative to use private methods.
  * TODO: Remove this source file when validateAffinity method is made public.
+ * Upstream tracker: https://github.com/kubernetes/kubernetes/issues/136422
  */
 
 // validateAffinity checks if given affinities are valid.

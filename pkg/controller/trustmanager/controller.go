@@ -3,9 +3,11 @@ package trustmanager
 import (
 	"context"
 	"fmt"
-	"reflect"
 
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -14,11 +16,14 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/go-logr/logr"
+
+	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 
 	v1alpha1 "github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/controller/common"
@@ -39,12 +44,20 @@ type Reconciler struct {
 	scheme        *runtime.Scheme
 }
 
-// TODO: Add more RBAC rules as resources are implemented
 // +kubebuilder:rbac:groups=operator.openshift.io,resources=trustmanagers,verbs=get;list;watch;update;patch
 // +kubebuilder:rbac:groups=operator.openshift.io,resources=trustmanagers/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=operator.openshift.io,resources=trustmanagers/finalizers,verbs=update
 // +kubebuilder:rbac:groups="",resources=namespaces,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;update;patch
+// +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch
+// +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch
+// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterroles;clusterrolebindings,verbs=get;list;watch;create;update;patch
+// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles;rolebindings,verbs=get;list;watch;create;update;patch
+// +kubebuilder:rbac:groups=cert-manager.io,resources=certificates;issuers,verbs=get;list;watch;create;update;patch
+// +kubebuilder:rbac:groups=admissionregistration.k8s.io,resources=validatingwebhookconfigurations,verbs=get;list;watch;create;update;patch
+// +kubebuilder:rbac:groups=trust.cert-manager.io,resources=bundles,verbs=get;list;watch
+// +kubebuilder:rbac:groups=trust.cert-manager.io,resources=bundles/finalizers,verbs=update
+// +kubebuilder:rbac:groups=trust.cert-manager.io,resources=bundles/status,verbs=patch
 
 // New returns a new Reconciler instance.
 func New(mgr ctrl.Manager) (*Reconciler, error) {
@@ -83,22 +96,57 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return []reconcile.Request{}
 	}
 
-	// predicate function to ignore events for objects not managed by controller.
-	controllerManagedResources := predicate.NewPredicateFuncs(func(object client.Object) bool {
+	isManagedResource := func(object client.Object) bool {
 		labels := object.GetLabels()
 		matches := labels != nil && labels[common.ManagedResourceLabelKey] == RequestEnqueueLabelValue
 		r.log.V(4).Info("predicate evaluation", "object", fmt.Sprintf("%T", object), "name", object.GetName(), "namespace", object.GetNamespace(), "labels", labels, "matches", matches)
 		return matches
-	})
+	}
+
+	// Predicate to filter events for resources managed by this controller.
+	// On updates, checks both old and new objects so that events where the
+	// managed label is removed still trigger reconciliation.
+	controllerManagedResources := predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			return isManagedResource(e.Object)
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			return isManagedResource(e.ObjectOld) || isManagedResource(e.ObjectNew)
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			return isManagedResource(e.Object)
+		},
+		GenericFunc: func(e event.GenericEvent) bool {
+			return isManagedResource(e.Object)
+		},
+	}
 
 	controllerManagedResourcePredicates := builder.WithPredicates(controllerManagedResources)
 
-	// TODO: Add more watches as resources are implemented
+	// withIgnoreStatusUpdatePredicates filters out status-only updates while still
+	// detecting spec changes (generation bump) and metadata drift (label/annotation edits).
+	withIgnoreStatusUpdatePredicates := builder.WithPredicates(
+		predicate.Or(
+			predicate.GenerationChangedPredicate{},
+			predicate.LabelChangedPredicate{},
+			predicate.AnnotationChangedPredicate{},
+		),
+		controllerManagedResources,
+	)
+
 	return ctrl.NewControllerManagedBy(mgr).
-		// GenerationChangedPredicate ignores status-only updates
 		For(&v1alpha1.TrustManager{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
 		Named(ControllerName).
 		Watches(&corev1.ServiceAccount{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
+		Watches(&appsv1.Deployment{}, handler.EnqueueRequestsFromMapFunc(mapFunc), withIgnoreStatusUpdatePredicates).
+		Watches(&corev1.Service{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
+		Watches(&rbacv1.ClusterRole{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
+		Watches(&rbacv1.ClusterRoleBinding{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
+		Watches(&rbacv1.Role{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
+		Watches(&rbacv1.RoleBinding{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
+		Watches(&certmanagerv1.Certificate{}, handler.EnqueueRequestsFromMapFunc(mapFunc), withIgnoreStatusUpdatePredicates).
+		Watches(&certmanagerv1.Issuer{}, handler.EnqueueRequestsFromMapFunc(mapFunc), withIgnoreStatusUpdatePredicates).
+		Watches(&admissionregistrationv1.ValidatingWebhookConfiguration{}, handler.EnqueueRequestsFromMapFunc(mapFunc), controllerManagedResourcePredicates).
 		Complete(r)
 }
 
@@ -147,13 +195,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 }
 
 func (r *Reconciler) processReconcileRequest(trustManager *v1alpha1.TrustManager, req types.NamespacedName) (ctrl.Result, error) {
-	trustManagerCreateRecon := false
-	if !containsProcessedAnnotation(trustManager) && reflect.DeepEqual(trustManager.Status, v1alpha1.TrustManagerStatus{}) {
-		r.log.V(1).Info("starting reconciliation of newly created trustmanager", "name", trustManager.GetName())
-		trustManagerCreateRecon = true
-	}
-
-	reconcileErr := r.reconcileTrustManagerDeployment(trustManager, trustManagerCreateRecon)
+	reconcileErr := r.reconcileTrustManagerDeployment(trustManager)
 	if reconcileErr != nil {
 		r.log.Error(reconcileErr, "failed to reconcile TrustManager deployment", "request", req)
 	}

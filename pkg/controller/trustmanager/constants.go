@@ -3,6 +3,8 @@ package trustmanager
 import (
 	"os"
 	"time"
+
+	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
 const (
@@ -11,10 +13,6 @@ const (
 
 	// ControllerName is the name of the controller used in logs and events.
 	ControllerName = trustManagerCommonName + "-controller"
-
-	// controllerProcessedAnnotation is the annotation added to trustmanager resource once after
-	// successful reconciliation by the controller.
-	controllerProcessedAnnotation = "operator.openshift.io/trust-manager-processed"
 
 	// finalizer name for trustmanager.openshift.operator.io resource.
 	finalizer = "trustmanager.openshift.operator.io/" + ControllerName
@@ -43,9 +41,45 @@ const (
 	// fieldOwner is the field manager name used for Server-Side Apply operations.
 	// All resource reconcilers should use this to identify ownership of fields.
 	fieldOwner = "trust-manager-controller"
+
+	// trustManagerContainerName is the name of the trust-manager container in the deployment.
+	trustManagerContainerName = "trust-manager"
+
+	// roleBindingSubjectKind is the kind used in RBAC binding subjects.
+	roleBindingSubjectKind = "ServiceAccount"
+)
+
+// Resource names used for creating resources and cross-referencing between them.
+// These must be set explicitly on each resource's .metadata.name and on every
+// field in other resources that references them.
+const (
+	trustManagerCommonResourceName = "trust-manager"
+
+	trustManagerServiceAccountName = trustManagerCommonResourceName
+	trustManagerDeploymentName     = trustManagerCommonResourceName
+
+	trustManagerServiceName        = trustManagerCommonResourceName
+	trustManagerMetricsServiceName = trustManagerCommonResourceName + "-metrics"
+
+	trustManagerClusterRoleName        = trustManagerCommonResourceName
+	trustManagerClusterRoleBindingName = trustManagerCommonResourceName
+
+	trustManagerRoleName        = trustManagerCommonResourceName
+	trustManagerRoleBindingName = trustManagerCommonResourceName
+
+	trustManagerLeaderElectionRoleName        = trustManagerCommonResourceName + ":leaderelection"
+	trustManagerLeaderElectionRoleBindingName = trustManagerCommonResourceName + ":leaderelection"
+
+	trustManagerIssuerName      = trustManagerCommonResourceName
+	trustManagerCertificateName = trustManagerCommonResourceName
+	trustManagerTLSSecretName   = trustManagerCommonResourceName + "-tls"
+
+	trustManagerWebhookConfigName = trustManagerCommonResourceName
 )
 
 var (
+	trustManagerConfigFieldPath     = field.NewPath("spec", "trustManagerConfig")
+	controllerConfigFieldPath       = field.NewPath("spec", "controllerConfig")
 	controllerDefaultResourceLabels = map[string]string{
 		"app":                          trustManagerCommonName,
 		"app.kubernetes.io/name":       trustManagerCommonName,
@@ -58,7 +92,25 @@ var (
 
 // asset names are the files present in the root bindata/ dir. Which are then loaded
 // and made available by the pkg/operator/assets package.
-// TODO: Add more asset names as resources are implemented
 const (
 	serviceAccountAssetName = "trust-manager/resources/serviceaccount_trust-manager.yml"
+
+	deploymentAssetName = "trust-manager/resources/deployment_trust-manager.yml"
+
+	serviceAssetName        = "trust-manager/resources/service_trust-manager.yml"
+	metricsServiceAssetName = "trust-manager/resources/service_trust-manager-metrics.yml"
+
+	clusterRoleAssetName        = "trust-manager/resources/clusterrole_trust-manager.yml"
+	clusterRoleBindingAssetName = "trust-manager/resources/clusterrolebinding_trust-manager.yml"
+
+	roleAssetName        = "trust-manager/resources/role_trust-manager.yml"
+	roleBindingAssetName = "trust-manager/resources/rolebinding_trust-manager.yml"
+
+	roleLeaderElectionAssetName        = "trust-manager/resources/role_trust-manager:leaderelection.yml"
+	roleBindingLeaderElectionAssetName = "trust-manager/resources/rolebinding_trust-manager:leaderelection.yml"
+
+	issuerAssetName      = "trust-manager/resources/issuer_trust-manager.yml"
+	certificateAssetName = "trust-manager/resources/certificate_trust-manager.yml"
+
+	validatingWebhookConfigAssetName = "trust-manager/resources/validatingwebhookconfiguration_trust-manager.yml"
 )
