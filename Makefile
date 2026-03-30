@@ -188,7 +188,7 @@ E2E_TIMEOUT ?= 2h
 # E2E_GINKGO_LABEL_FILTER is ginkgo label query for selecting tests.
 # See https://onsi.github.io/ginkgo/#spec-labels
 # The default is to run tests on the AWS platform.
-E2E_GINKGO_LABEL_FILTER ?= Platform: isSubsetOf {AWS} && CredentialsMode: isSubsetOf {Mint}
+E2E_GINKGO_LABEL_FILTER ?= Platform: isSubsetOf {AWS,Generic} && CredentialsMode: isSubsetOf {Mint}
 
 # ============================================================================
 # Default Target
@@ -211,14 +211,25 @@ help: ## Display this help.
 # Build Machinery Includes
 # ============================================================================
 
-# Include the library makefiles
-include $(addprefix ./vendor/github.com/openshift/build-machinery-go/make/, \
-	targets/openshift/bindata.mk \
-	targets/openshift/yq.mk \
-)
+# Include the library makefiles only when vendored (so e.g. `make update-vendor` works on a clean tree).
+BUILD_MACHINERY_GO_MAKE := $(PROJECT_ROOT)/vendor/github.com/openshift/build-machinery-go/make
 
+ifneq (,$(wildcard $(BUILD_MACHINERY_GO_MAKE)/targets/openshift/bindata.mk))
+include $(BUILD_MACHINERY_GO_MAKE)/targets/openshift/bindata.mk
 # Generate bindata targets
 $(call add-bindata,assets,./bindata/...,bindata,assets,pkg/operator/assets/bindata.go)
+endif
+
+ifneq (,$(wildcard $(BUILD_MACHINERY_GO_MAKE)/targets/openshift/yq.mk))
+include $(BUILD_MACHINERY_GO_MAKE)/targets/openshift/yq.mk
+else
+# Vendored yq.mk defines ensure-yq; stub so the Makefile parses before the first `go work vendor`.
+.PHONY: ensure-yq
+ensure-yq:
+	@echo >&2 "Missing $(BUILD_MACHINERY_GO_MAKE)/targets/openshift/yq.mk"
+	@echo >&2 "Populate vendor first: go work vendor   or: make update-vendor"
+	@exit 1
+endif
 
 # ============================================================================
 # Development
