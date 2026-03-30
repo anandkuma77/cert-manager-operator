@@ -45,7 +45,7 @@ const (
 	trustManagerWebhookConfigName = "trust-manager"
 )
 
-var _ = Describe("TrustManager", Ordered, Label("Feature:TrustManager"), func() {
+var _ = Describe("TrustManager", Ordered, Label("Platform:Generic", "Feature:TrustManager"), func() {
 	ctx := context.TODO()
 	var clientset *kubernetes.Clientset
 
