@@ -102,6 +102,9 @@ func (r *Reconciler) createOrApplyClusterRoles(istiocsr *v1alpha1.IstioCSR, reso
 		}
 		if hasObjectChanged(desired, fetched) {
 			r.log.V(1).Info("clusterrole has been modified, updating to desired state", "name", roleName)
+			// desired is built with GenerateName for create; for update the name must match the live object.
+			desired.SetName(fetched.GetName())
+			desired.SetGenerateName("")
 			if err := r.UpdateWithRetry(r.ctx, desired); err != nil {
 				return "", common.FromClientError(err, "failed to update %s clusterrole resource", roleName)
 			}
@@ -197,11 +200,13 @@ func (r *Reconciler) createOrApplyClusterRoleBindings(istiocsr *v1alpha1.IstioCS
 			r.eventRecorder.Eventf(istiocsr, corev1.EventTypeWarning, "ResourceAlreadyExists", "%s clusterrolebinding resource already exists, maybe from previous installation", roleBindingName)
 		}
 		if hasObjectChanged(desired, fetched) {
-			r.log.V(1).Info("clusterrolebinding has been modified, updating to desired state", "name", roleBindingName)
-			if err := r.UpdateWithRetry(r.ctx, desired); err != nil {
-				return common.FromClientError(err, "failed to update %s clusterrolebinding resource", roleBindingName)
+			recreate, err := r.handleClusterRoleBindingModification(istiocsr, desired, fetched, roleBindingName)
+			if err != nil {
+				return err
 			}
-			r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "clusterrolebinding resource %s reconciled back to desired state", roleBindingName)
+			if recreate {
+				exist = false
+			}
 		} else {
 			r.log.V(4).Info("clusterrolebinding resource already exists and is in expected state", "name", roleBindingName)
 		}
@@ -429,4 +434,31 @@ func updateServiceAccountNamespaceInRBACBindingObject[Object *rbacv1.RoleBinding
 			(*subjects)[i].Namespace = newNamespace
 		}
 	}
+}
+
+// handleClusterRoleBindingModification reconciles a drifted ClusterRoleBinding back to its desired state.
+// It copies the live object's name onto the desired spec (which was built with GenerateName for creation)
+// and then attempts an in-place update. Because the Kubernetes API treats RoleRef as immutable, a RoleRef
+// change requires deleting the existing binding first; in that case recreate is returned as true so the
+// caller can issue a fresh Create.
+func (r *Reconciler) handleClusterRoleBindingModification(istiocsr *v1alpha1.IstioCSR, desired, fetched *rbacv1.ClusterRoleBinding, roleBindingName string) (recreate bool, err error) {
+	r.log.V(1).Info("clusterrolebinding has been modified, updating to desired state", "name", roleBindingName)
+	// desired is built with GenerateName for create; for update the name must match the live object.
+	desired.SetName(fetched.GetName())
+	desired.SetGenerateName("")
+	// ClusterRoleBinding.RoleRef is immutable; a new ClusterRole name (e.g. after delete/recreate
+	// with GenerateName) cannot be applied via Update.
+	if rbacRoleBindingRefModified(desired, fetched) {
+		r.log.V(1).Info("clusterrolebinding roleRef changed, deleting for recreation (roleRef is immutable)", "name", roleBindingName)
+		if err := r.Delete(r.ctx, fetched); err != nil {
+			return recreate, common.FromClientError(err, "failed to delete %s clusterrolebinding to replace roleRef", roleBindingName)
+		}
+		recreate = true
+		return recreate, nil
+	}
+	if err := r.UpdateWithRetry(r.ctx, desired); err != nil {
+		return recreate, common.FromClientError(err, "failed to update %s clusterrolebinding resource", roleBindingName)
+	}
+	r.eventRecorder.Eventf(istiocsr, corev1.EventTypeNormal, "Reconciled", "clusterrolebinding resource %s reconciled back to desired state", roleBindingName)
+	return recreate, nil
 }
