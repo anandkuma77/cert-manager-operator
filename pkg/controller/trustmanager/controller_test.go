@@ -2,6 +2,7 @@ package trustmanager
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -250,6 +251,86 @@ func TestProcessReconcileRequest(t *testing.T) {
 				},
 			},
 			wantErr: "failed to check if serviceaccount",
+		},
+		{
+			name: "trust namespace does not exist sets degraded true",
+			getTrustManager: func() *v1alpha1.TrustManager {
+				return testTrustManager().Build()
+			},
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.GetCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+					switch o := obj.(type) {
+					case *v1alpha1.TrustManager:
+						testTrustManager().Build().DeepCopyInto(o)
+					}
+					return nil
+				})
+				// Namespace does not exist - validateTrustNamespace will fail
+				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+					switch obj.(type) {
+					case *corev1.Namespace:
+						return false, nil
+					}
+					return false, nil
+				})
+			},
+			wantConditions: []metav1.Condition{
+				{
+					Type:   v1alpha1.Degraded,
+					Status: metav1.ConditionTrue,
+					Reason: v1alpha1.ReasonFailed,
+					Message: fmt.Sprintf(
+						"reconciliation failed with irrecoverable error not retrying: trust namespace %q validation failed: trust namespace %q does not exist, create the namespace before creating TrustManager CR",
+						defaultTrustNamespace,
+						defaultTrustNamespace,
+					),
+				},
+				{
+					Type:   v1alpha1.Ready,
+					Status: metav1.ConditionFalse,
+					Reason: v1alpha1.ReasonFailed,
+				},
+			},
+		},
+		{
+			name: "custom trust namespace configures resources correctly",
+			getTrustManager: func() *v1alpha1.TrustManager {
+				tm := testTrustManager().Build()
+				tm.Spec.TrustManagerConfig.TrustNamespace = "custom-trust-ns"
+				return tm
+			},
+			preReq: func(r *Reconciler, m *fakes.FakeCtrlClient) {
+				m.GetCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+					switch o := obj.(type) {
+					case *v1alpha1.TrustManager:
+						tm := testTrustManager().Build()
+						tm.Spec.TrustManagerConfig.TrustNamespace = "custom-trust-ns"
+						tm.DeepCopyInto(o)
+					}
+					return nil
+				})
+				// Custom namespace exists; so SSA Patch will create or update all resources successfully.
+				m.ExistsCalls(func(ctx context.Context, key client.ObjectKey, obj client.Object) (bool, error) {
+					switch obj.(type) {
+					case *corev1.Namespace:
+						return true, nil
+					}
+					return false, nil
+				})
+			},
+			wantConditions: []metav1.Condition{
+				{
+					Type:   v1alpha1.Degraded,
+					Status: metav1.ConditionFalse,
+					Reason: v1alpha1.ReasonReady,
+				},
+				{
+					Type:    v1alpha1.Ready,
+					Status:  metav1.ConditionTrue,
+					Reason:  v1alpha1.ReasonReady,
+					Message: "reconciliation successful",
+				},
+			},
 		},
 	}
 
