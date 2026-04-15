@@ -77,13 +77,14 @@ func withContainerArgsValidateHook(certmanagerinformer certmanagerinformer.CertM
 	validateArgs := func(argMap map[string]string, supportedArgs []string) error {
 		for k, v := range argMap {
 			if !slices.Contains(supportedArgs, k) {
+				//nolint:err113 // validation error with arg key-value for debugging
 				return fmt.Errorf("validation failed due to unsupported arg %q=%q", k, v)
 			}
 		}
 		return nil
 	}
 
-	return func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
+	return func(_ *operatorv1.OperatorSpec, _ *appsv1.Deployment) error {
 		certmanager, err := certmanagerinformer.Lister().Get("cluster")
 		if err != nil {
 			return fmt.Errorf("failed to get certmanager %q due to %w", "cluster", err)
@@ -107,6 +108,7 @@ func withContainerArgsValidateHook(certmanagerinformer certmanagerinformer.CertM
 				return validateArgs(argMap, supportedCertManageCainjectorArgs)
 			}
 		default:
+			//nolint:err113 // validation error with deployment name for debugging
 			return fmt.Errorf("unsupported deployment name %q provided", deploymentName)
 		}
 
@@ -126,13 +128,14 @@ func withContainerEnvValidateHook(certmanagerinformer certmanagerinformer.CertMa
 	validateEnv := func(argMap map[string]corev1.EnvVar, supportedEnv []string) error {
 		for k, v := range argMap {
 			if !slices.Contains(supportedEnv, k) {
+				//nolint:err113 // validation error with env key-value for debugging
 				return fmt.Errorf("validation failed due to unsupported arg %q=%q", k, v)
 			}
 		}
 		return nil
 	}
 
-	return func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
+	return func(_ *operatorv1.OperatorSpec, _ *appsv1.Deployment) error {
 		certmanager, err := certmanagerinformer.Lister().Get("cluster")
 		if err != nil {
 			return fmt.Errorf("failed to get certmanager %q due to %w", "cluster", err)
@@ -156,6 +159,7 @@ func withContainerEnvValidateHook(certmanagerinformer certmanagerinformer.CertMa
 				return validateEnv(envMap, supportedCertManageCainjectorEnv)
 			}
 		default:
+			//nolint:err113 // validation error with deployment name for debugging
 			return fmt.Errorf("unsupported deployment name %q provided", deploymentName)
 		}
 
@@ -175,13 +179,14 @@ func withPodLabelsValidateHook(certmanagerinformer certmanagerinformer.CertManag
 	validateLabels := func(labels map[string]string, supportedLabelKeys []string) error {
 		for k, v := range labels {
 			if !slices.Contains(supportedLabelKeys, k) {
+				//nolint:err113 // validation error with label key-value for debugging
 				return fmt.Errorf("validation failed due to unsupported label %q=%q", k, v)
 			}
 		}
 		return nil
 	}
 
-	return func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
+	return func(_ *operatorv1.OperatorSpec, _ *appsv1.Deployment) error {
 		certmanager, err := certmanagerinformer.Lister().Get("cluster")
 		if err != nil {
 			return fmt.Errorf("failed to get certmanager %q due to %w", "cluster", err)
@@ -201,6 +206,7 @@ func withPodLabelsValidateHook(certmanagerinformer certmanagerinformer.CertManag
 				return validateLabels(certmanager.Spec.CAInjectorConfig.OverrideLabels, supportedCertManagerCainjectorLabelKeys)
 			}
 		default:
+			//nolint:err113 // validation error with deployment name for debugging
 			return fmt.Errorf("unsupported deployment name %q provided", deploymentName)
 		}
 
@@ -221,7 +227,7 @@ func withContainerResourcesValidateHook(certmanagerinformer certmanagerinformer.
 		string(corev1.ResourceCPU), string(corev1.ResourceMemory),
 	}
 
-	return func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
+	return func(_ *operatorv1.OperatorSpec, _ *appsv1.Deployment) error {
 		certmanager, err := certmanagerinformer.Lister().Get("cluster")
 		if err != nil {
 			return fmt.Errorf("failed to get certmanager %q due to %w", "cluster", err)
@@ -241,6 +247,7 @@ func withContainerResourcesValidateHook(certmanagerinformer certmanagerinformer.
 				return validateResources(certmanager.Spec.CAInjectorConfig.OverrideResources, supportedCertManagerCainjectorResourceNames)
 			}
 		default:
+			//nolint:err113 // validation error with deployment name for debugging
 			return fmt.Errorf("unsupported deployment name %q provided", deploymentName)
 		}
 
@@ -253,11 +260,13 @@ func validateResources(resources v1alpha1.CertManagerResourceRequirements, suppo
 	errs := []error{}
 	for k, v := range resources.Limits {
 		if !slices.Contains(supportedResourceNames, string(k)) {
+			//nolint:err113 // validation error with resource limit key-value for debugging
 			errs = append(errs, fmt.Errorf("validation failed due to unsupported resource limits %q=%s", k, v.String()))
 		}
 	}
 	for k, v := range resources.Requests {
 		if !slices.Contains(supportedResourceNames, string(k)) {
+			//nolint:err113 // validation error with resource request key-value for debugging
 			errs = append(errs, fmt.Errorf("validation failed due to unsupported resource requests %q=%s", k, v.String()))
 		}
 	}
@@ -266,7 +275,7 @@ func validateResources(resources v1alpha1.CertManagerResourceRequirements, suppo
 
 // withPodSchedulingValidateHook validates the overrides scheduling field for each operand.
 func withPodSchedulingValidateHook(certmanagerinformer certmanagerinformer.CertManagerInformer, deploymentName string) func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
-	return func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
+	return func(_ *operatorv1.OperatorSpec, _ *appsv1.Deployment) error {
 		certmanager, err := certmanagerinformer.Lister().Get("cluster")
 		if err != nil {
 			return fmt.Errorf("failed to get certmanager %q due to %w", "cluster", err)
@@ -289,6 +298,7 @@ func withPodSchedulingValidateHook(certmanagerinformer certmanagerinformer.CertM
 					field.NewPath("spec", "cainjectorConfig", "overrideScheduling"))
 			}
 		default:
+			//nolint:err113 // validation error with deployment name for debugging
 			return fmt.Errorf("unsupported deployment name %q provided", deploymentName)
 		}
 
