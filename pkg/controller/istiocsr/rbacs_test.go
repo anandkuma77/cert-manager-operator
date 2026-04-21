@@ -95,7 +95,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					return true, nil
 				})
 			},
-			wantErr: `failed to check istio-test-ns/cert-manager-istio-csr-leases role resource already exists: test client error`,
+			wantErr: `failed to check istio-test-ns/cert-manager-istio-csr-leases role for lease resource already exists: test client error`,
 		},
 		{
 			name: "rolebindings-leases reconciliation fails while checking if exists",
@@ -110,7 +110,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					return true, nil
 				})
 			},
-			wantErr: `failed to check istio-test-ns/cert-manager-istio-csr-leases rolebinding resource already exists: test client error`,
+			wantErr: `failed to check istio-test-ns/cert-manager-istio-csr-leases rolebinding for lease resource already exists: test client error`,
 		},
 		{
 			name: "clusterrolebindings reconciliation fails while listing existing resources",
@@ -518,7 +518,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr: `failed to update istio-test-ns/cert-manager-istio-csr-leases role resource: test client error`,
+			wantErr: `failed to update istio-test-ns/cert-manager-istio-csr-leases role for lease resource: test client error`,
 		},
 		{
 			name: "role-leases reconciliation creation fails",
@@ -542,7 +542,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr: `failed to create istio-test-ns/cert-manager-istio-csr-leases role resource: test client error`,
+			wantErr: `failed to create istio-test-ns/cert-manager-istio-csr-leases role for lease resource: test client error`,
 		},
 		{
 			name: "rolebindings reconciliation updating to desired state fails",
@@ -610,7 +610,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr: `failed to update istio-test-ns/cert-manager-istio-csr-leases rolebinding resource: test client error`,
+			wantErr: `failed to update istio-test-ns/cert-manager-istio-csr-leases rolebinding for lease resource: test client error`,
 		},
 		{
 			name: "rolebinding-leases reconciliation creation fails",
@@ -634,7 +634,7 @@ func TestCreateOrApplyRBACResource(t *testing.T) {
 					return nil
 				})
 			},
-			wantErr: `failed to create istio-test-ns/cert-manager-istio-csr-leases rolebinding resource: test client error`,
+			wantErr: `failed to create istio-test-ns/cert-manager-istio-csr-leases rolebinding for lease resource: test client error`,
 		},
 	}
 
