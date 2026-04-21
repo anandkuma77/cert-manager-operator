@@ -261,11 +261,19 @@ func (r *Reconciler) reconcileResourceWithSSA(
 		return nil
 	}
 
-	r.log.V(2).Info(resourceKind+" resource has been modified, updating to desired state", "name", resourceName)
+	if !exists {
+		r.log.V(2).Info("creating "+resourceKind+" resource", "name", resourceName)
+	} else {
+		r.log.V(2).Info("updating "+resourceKind+" resource", "name", resourceName)
+	}
 	if err := r.Patch(r.ctx, desired, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
 		return common.FromClientError(err, "failed to apply %s %q", resourceKind, resourceName)
 	}
 
-	r.eventRecorder.Eventf(trustManager, corev1.EventTypeNormal, "Reconciled", "%s resource %s applied", resourceKind, resourceName)
+	if !exists {
+		r.eventRecorder.Eventf(trustManager, corev1.EventTypeNormal, "Reconciled", "%s resource %s created", resourceKind, resourceName)
+	} else {
+		r.eventRecorder.Eventf(trustManager, corev1.EventTypeNormal, "Reconciled", "%s resource %s updated", resourceKind, resourceName)
+	}
 	return nil
 }

@@ -254,7 +254,7 @@ func (r *Reconciler) updateClusterRoleBindingNameInStatus(istiocsr *v1alpha1.Ist
 
 func (r *Reconciler) createOrApplyRoles(istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string, istioCSRCreateRecon bool) error {
 	desired := r.getRoleObject(istiocsr.GetNamespace(), istiocsr.Spec.IstioCSRConfig.Istio.Namespace, resourceLabels)
-	return r.reconcileNamespacedRBACObject(istiocsr, desired, &rbacv1.Role{}, "reconciling role resource", "role resource", istioCSRCreateRecon)
+	return r.reconcileNamespacedObject(istiocsr, desired, &rbacv1.Role{}, "reconciling role resource", "role resource", istioCSRCreateRecon)
 }
 
 func (r *Reconciler) getRoleObject(istiocsrNamespace, roleNamespace string, resourceLabels map[string]string) *rbacv1.Role {
@@ -266,7 +266,7 @@ func (r *Reconciler) getRoleObject(istiocsrNamespace, roleNamespace string, reso
 
 func (r *Reconciler) createOrApplyRoleBindings(istiocsr *v1alpha1.IstioCSR, serviceAccount string, resourceLabels map[string]string, istioCSRCreateRecon bool) error {
 	desired := r.getRoleBindingObject(serviceAccount, istiocsr.GetNamespace(), istiocsr.Spec.IstioCSRConfig.Istio.Namespace, resourceLabels)
-	return r.reconcileNamespacedRBACObject(istiocsr, desired, &rbacv1.RoleBinding{}, "reconciling rolebinding resource", "rolebinding resource", istioCSRCreateRecon)
+	return r.reconcileNamespacedObject(istiocsr, desired, &rbacv1.RoleBinding{}, "reconciling rolebinding resource", "rolebinding resource", istioCSRCreateRecon)
 }
 
 func (r *Reconciler) getRoleBindingObject(serviceAccount, istiocsrNamespace, roleNamespace string, resourceLabels map[string]string) *rbacv1.RoleBinding {
@@ -279,7 +279,7 @@ func (r *Reconciler) getRoleBindingObject(serviceAccount, istiocsrNamespace, rol
 
 func (r *Reconciler) createOrApplyRoleForLeases(istiocsr *v1alpha1.IstioCSR, resourceLabels map[string]string, istioCSRCreateRecon bool) error {
 	desired := r.getRoleForLeasesObject(istiocsr.GetNamespace(), istiocsr.Spec.IstioCSRConfig.Istio.Namespace, resourceLabels)
-	return r.reconcileNamespacedRBACObject(istiocsr, desired, &rbacv1.Role{}, "reconciling role for lease resource", "role for lease resource", istioCSRCreateRecon)
+	return r.reconcileNamespacedObject(istiocsr, desired, &rbacv1.Role{}, "reconciling role for lease resource", "role for lease resource", istioCSRCreateRecon)
 }
 
 func (r *Reconciler) getRoleForLeasesObject(istiocsrNamespace, roleNamespace string, resourceLabels map[string]string) *rbacv1.Role {
@@ -291,7 +291,7 @@ func (r *Reconciler) getRoleForLeasesObject(istiocsrNamespace, roleNamespace str
 
 func (r *Reconciler) createOrApplyRoleBindingForLeases(istiocsr *v1alpha1.IstioCSR, serviceAccount string, resourceLabels map[string]string, istioCSRCreateRecon bool) error {
 	desired := r.getRoleBindingForLeasesObject(serviceAccount, istiocsr.GetNamespace(), istiocsr.Spec.IstioCSRConfig.Istio.Namespace, resourceLabels)
-	return r.reconcileNamespacedRBACObject(istiocsr, desired, &rbacv1.RoleBinding{}, "reconciling rolebinding for lease resource", "rolebinding for lease resource", istioCSRCreateRecon)
+	return r.reconcileNamespacedObject(istiocsr, desired, &rbacv1.RoleBinding{}, "reconciling rolebinding for lease resource", "rolebinding for lease resource", istioCSRCreateRecon)
 }
 
 func (r *Reconciler) getRoleBindingForLeasesObject(serviceAccount, istiocsrNamespace, roleNamespace string, resourceLabels map[string]string) *rbacv1.RoleBinding {
@@ -317,10 +317,10 @@ func updateServiceAccountNamespaceInRBACBindingObject[Object *rbacv1.RoleBinding
 	}
 }
 
-// reconcileNamespacedRBACObject handles the common create-or-update logic for namespaced RBAC
-// resources (Role and RoleBinding). logMsg is used for the initial reconciliation log; resourceKind
+// reconcileNamespacedObject handles the common create-or-update logic for namespaced
+// resources (Role, RoleBinding, ServiceAccount, Service). logMsg is used for the initial reconciliation log; resourceKind
 // is used in error and event messages. fetched must be an empty instance of the same type as desired.
-func (r *Reconciler) reconcileNamespacedRBACObject(istiocsr *v1alpha1.IstioCSR, desired, fetched client.Object, logMsg, resourceKind string, istioCSRCreateRecon bool) error {
+func (r *Reconciler) reconcileNamespacedObject(istiocsr *v1alpha1.IstioCSR, desired, fetched client.Object, logMsg, resourceKind string, istioCSRCreateRecon bool) error {
 	resourceName := fmt.Sprintf("%s/%s", desired.GetNamespace(), desired.GetName())
 	r.log.V(4).Info(logMsg, "name", resourceName)
 	exist, err := r.Exists(r.ctx, client.ObjectKeyFromObject(desired), fetched)
