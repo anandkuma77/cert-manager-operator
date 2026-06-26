@@ -1,0 +1,32 @@
+# FILE: bindata/http01-proxy/cert-manager-http01-proxy-scc-rolebinding.yaml
+#
+# WHAT IT DOES (max 5 lines):
+# THE MOST CRITICAL RBAC BINDING - binds proxy ServiceAccount to OpenShift's privileged SCC (Security
+# Context Constraint). This grants permission to use hostNetwork: true and NET_ADMIN capability,
+# which are required for proxy to intercept VIP traffic and manipulate nftables. Without this binding,
+# OpenShift blocks pod creation with "unable to validate against any security context constraint".
+# This is why proxy can run with elevated privileges on OpenShift.
+#
+# HOW IT DOES IT (max 5 lines):
+# Static YAML embedded in binary. Loaded by rbacs.go and applied to cluster. roleRef points to
+# system:openshift:scc:privileged (built-in ClusterRole that grants "use" permission on privileged
+# SCC). Subjects lists proxy ServiceAccount. Once created, OpenShift SCC admission controller allows
+# proxy pods to use hostNetwork and capabilities.add=[NET_ADMIN]. Controller dynamically sets namespace
+# when applying. This binding enables the privileged pod spec in DaemonSet template.
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cert-manager-http01-proxy-scc
+  labels:
+    app: cert-manager-http01-proxy
+    app.kubernetes.io/name: cert-manager-http01-proxy
+    app.kubernetes.io/part-of: cert-manager-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:openshift:scc:privileged
+subjects:
+  - kind: ServiceAccount
+    name: cert-manager-http01-proxy
+    namespace: cert-manager-operator

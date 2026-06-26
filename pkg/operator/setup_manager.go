@@ -1,3 +1,19 @@
+// FILE: pkg/operator/setup_manager.go
+//
+// WHAT IT DOES (max 5 lines):
+// Registers all enabled controllers with the controller-runtime Manager based on feature
+// gate configuration. Creates HTTP01Proxy controller when FeatureHTTP01Proxy is enabled,
+// sets up its cache configuration (which resources to watch with label filters), and wires
+// it into the unified manager. This is where operator startup code decides which controllers
+// to run based on --unsupported-addon-features flags.
+//
+// HOW IT DOES IT (max 5 lines):
+// NewControllerManager checks ControllerConfig.EnableHTTP01Proxy (set by feature gate parsing
+// in starter.go). If enabled, calls setupHTTP01ProxyController which creates Reconciler via
+// http01proxy.New() and registers it with manager. Also configures cache to watch HTTP01Proxy
+// resources and managed child resources (DaemonSet, RBAC, etc.) with label selectors for
+// efficiency. Feature gate disabled = controller never starts, HTTP01Proxy CRD stays unused.
+
 package operator
 
 import (
@@ -20,12 +36,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 
 	configv1 "github.com/openshift/api/config/v1"
 	v1alpha1 "github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/controller/common"
+	"github.com/openshift/cert-manager-operator/pkg/controller/http01proxy"
 	"github.com/openshift/cert-manager-operator/pkg/controller/istiocsr"
 	"github.com/openshift/cert-manager-operator/pkg/controller/trustmanager"
 	"github.com/openshift/cert-manager-operator/pkg/version"
@@ -80,7 +98,7 @@ var istioCSRManagedResources = []client.Object{
 // cert-manager Issuer (and ClusterIssuer, which is never listed here) must not use a
 // managed-resource label selector: IstioCSR reconciles user-created Issuers referenced
 // from the spec, which are not labeled by the operator. Those types are left out of
-// ByObject so they use the manager cache’s default unfiltered informer per GVK.
+// ByObject so they use the manager cache's default unfiltered informer per GVK.
 var trustManagerManagedResources = []client.Object{
 	&certmanagerv1.Certificate{},
 	&appsv1.Deployment{},
@@ -91,6 +109,16 @@ var trustManagerManagedResources = []client.Object{
 	&corev1.Service{},
 	&corev1.ServiceAccount{},
 	&admissionregistrationv1.ValidatingWebhookConfiguration{},
+}
+
+// http01ProxyManagedResources defines the resources managed by the HTTP01Proxy controller.
+// These resources will be watched with a label selector filter.
+var http01ProxyManagedResources = []client.Object{
+	&appsv1.DaemonSet{},
+	&rbacv1.ClusterRole{},
+	&rbacv1.ClusterRoleBinding{},
+	&corev1.ServiceAccount{},
+	&networkingv1.NetworkPolicy{},
 }
 
 func init() {
@@ -115,6 +143,7 @@ type Manager struct {
 type ControllerConfig struct {
 	EnableIstioCSR     bool
 	EnableTrustManager bool
+	EnableHTTP01Proxy  bool
 }
 
 // NewControllerManager creates a unified manager for all enabled operand controllers.
@@ -122,7 +151,7 @@ type ControllerConfig struct {
 func NewControllerManager(config ControllerConfig) (*Manager, error) {
 	setupLog.Info("setting up unified operator manager")
 	setupLog.Info("controller", "version", version.Get())
-	setupLog.Info("enabled controllers", "istioCSR", config.EnableIstioCSR, "trustManager", config.EnableTrustManager)
+	setupLog.Info("enabled controllers", "istioCSR", config.EnableIstioCSR, "trustManager", config.EnableTrustManager, "http01Proxy", config.EnableHTTP01Proxy)
 
 	cacheBuilder := newUnifiedCacheBuilder(config)
 
@@ -130,6 +159,9 @@ func NewControllerManager(config ControllerConfig) (*Manager, error) {
 		Scheme:   scheme,
 		NewCache: cacheBuilder,
 		Logger:   ctrl.Log.WithName("operator-manager"),
+		// Use a separate port for the controller-runtime metrics server to avoid
+		// conflicting with the library-go metrics server on :8080.
+		Metrics: metricsserver.Options{BindAddress: ":8085"},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create manager: %w", err)
@@ -144,6 +176,12 @@ func NewControllerManager(config ControllerConfig) (*Manager, error) {
 
 	if config.EnableTrustManager {
 		if err := setupTrustManagerController(mgr); err != nil {
+			return nil, err
+		}
+	}
+
+	if config.EnableHTTP01Proxy {
+		if err := setupHTTP01ProxyController(mgr); err != nil {
 			return nil, err
 		}
 	}
@@ -175,6 +213,19 @@ func setupTrustManagerController(mgr ctrl.Manager) error {
 	}
 	if err := r.SetupWithManager(mgr); err != nil {
 		return fmt.Errorf("failed to create %s controller: %w", trustmanager.ControllerName, err)
+	}
+	return nil
+}
+
+// setupHTTP01ProxyController creates and registers the HTTP01Proxy controller with the manager.
+func setupHTTP01ProxyController(mgr ctrl.Manager) error {
+	setupLog.Info("setting up controller", "name", http01proxy.ControllerName)
+	r, err := http01proxy.New(mgr)
+	if err != nil {
+		return fmt.Errorf("failed to create %s reconciler object: %w", http01proxy.ControllerName, err)
+	}
+	if err := r.SetupWithManager(mgr); err != nil {
+		return fmt.Errorf("failed to create %s controller: %w", http01proxy.ControllerName, err)
 	}
 	return nil
 }
@@ -212,6 +263,14 @@ func buildCacheObjectList(config ControllerConfig) (map[client.Object]cache.ByOb
 		}
 		// TrustManager CR - no label filter needed
 		objectList[&v1alpha1.TrustManager{}] = cache.ByObject{}
+	}
+
+	if config.EnableHTTP01Proxy {
+		if err := addControllerCacheConfig(objectList, http01proxy.RequestEnqueueLabelValue, http01ProxyManagedResources); err != nil {
+			return nil, fmt.Errorf("failed to configure HTTP01Proxy cache: %w", err)
+		}
+		// HTTP01Proxy CR - no label filter needed
+		objectList[&v1alpha1.HTTP01Proxy{}] = cache.ByObject{}
 	}
 
 	return objectList, nil

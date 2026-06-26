@@ -1,3 +1,19 @@
+// FILE: pkg/operator/starter.go
+//
+// WHAT IT DOES (max 5 lines):
+// Operator entry point that starts all controllers. Parses feature gates from command-line
+// flags, checks if HTTP01Proxy feature is enabled, and passes configuration to NewControllerManager.
+// Also starts the legacy library-go based CertManager controller. This is the top-level orchestration
+// that runs when operator pod starts - determines which controllers run based on feature gates and
+// starts both controller-runtime managers and legacy controllers.
+//
+// HOW IT DOES IT (max 5 lines):
+// RunOperator is called by main.go with command-line context. Checks DefaultFeatureGate for
+// FeatureHTTP01Proxy (set via --unsupported-addon-features=HTTP01Proxy=true). Creates ControllerConfig
+// with EnableHTTP01Proxy=true/false, passes to NewControllerManager which conditionally registers
+// HTTP01Proxy controller. Feature gate parsing happens early in startup, before any controller runs,
+// ensuring disabled features never load their code.
+
 package operator
 
 import (
@@ -18,6 +34,7 @@ import (
 	"github.com/openshift/library-go/pkg/operator/status"
 	"github.com/openshift/library-go/pkg/operator/v1helpers"
 
+	v1alpha1 "github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/controller/certmanager"
 	"github.com/openshift/cert-manager-operator/pkg/features"
 	certmanoperatorclient "github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned"
@@ -144,12 +161,14 @@ func RunOperator(ctx context.Context, cc *controllercmd.ControllerContext) error
 	}
 	istioCSREnabled := features.IsIstioCSRFeatureGateEnabled()
 	trustManagerEnabled := featureStatus.IsTrustManagerFeatureGateEnabled()
+	http01ProxyEnabled := features.DefaultFeatureGate.Enabled(v1alpha1.FeatureHTTP01Proxy)
 
-	if istioCSREnabled || trustManagerEnabled {
+	if istioCSREnabled || trustManagerEnabled || http01ProxyEnabled {
 		// Create unified manager for all enabled operand controllers
 		manager, err := NewControllerManager(ControllerConfig{
 			EnableIstioCSR:     istioCSREnabled,
 			EnableTrustManager: trustManagerEnabled,
+			EnableHTTP01Proxy:  http01ProxyEnabled,
 		})
 		if err != nil {
 			return fmt.Errorf("failed to create unified controller manager: %w", err)

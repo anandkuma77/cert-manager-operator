@@ -1,0 +1,31 @@
+# FILE: config/samples/operator.openshift.io_v1alpha1_http01proxy.yaml
+#
+# WHAT IT DOES (max 5 lines):
+# Example HTTP01Proxy resource showing users the minimal valid configuration.
+# This is the YAML users would `kubectl apply` to enable the HTTP01 proxy on their
+# bare-metal OpenShift cluster. Shows the required fields (name must be "default",
+# mode must be set) and demonstrates the simplest case (DefaultDeployment mode with
+# no customization).
+#
+# HOW IT DOES IT (max 5 lines):
+# Specifies the minimum required fields to create a valid HTTP01Proxy. When applied,
+# this triggers the controller to validate the platform (must be BareMetal with
+# distinct VIPs), then deploy the proxy DaemonSet on master nodes. This sample uses
+# DefaultDeployment mode which deploys with hardcoded defaults (port 8888, standard
+# resource limits, no custom configuration).
+
+apiVersion: operator.openshift.io/v1alpha1  # API group and version (matches CRD)
+kind: HTTP01Proxy                           # Resource type (must match CRD kind)
+metadata:
+  name: default                             # MUST be "default" (singleton validation rule enforces this)
+  namespace: cert-manager-operator          # Namespace where operator watches for HTTP01Proxy resources
+spec:
+  mode: DefaultDeployment                   # Use default configuration (no customDeployment field needed)
+  # When mode is DefaultDeployment:
+  # - customDeployment field must NOT be present (validation enforces this)
+  # - Proxy deploys with hardcoded defaults: port 8888, standard DaemonSet spec
+  #
+  # Alternative example with CustomDeployment mode:
+  # mode: CustomDeployment
+  # customDeployment:
+  #   internalPort: 9000  # Custom port (must be 1024-65535)
