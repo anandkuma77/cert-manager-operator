@@ -1,6 +1,27 @@
+# FILE: config/crd/bases/operator.openshift.io_http01proxies.yaml
+#
+# WHAT IT DOES (max 5 lines):
+# AUTO-GENERATED CRD (Custom Resource Definition) that Kubernetes installs to make
+# HTTP01Proxy a valid API type. Defines the OpenAPI schema with all validation rules,
+# default values, field descriptions. When this CRD is applied, users can create
+# HTTP01Proxy resources via kubectl/oc. API server uses this schema to validate
+# incoming HTTP01Proxy objects before storing them in etcd.
+#
+# HOW IT DOES IT (max 5 lines):
+# controller-gen reads http01proxy_types.go markers (+kubebuilder: annotations)
+# and generates this OpenAPI v3 schema. Includes CEL validation rules (singleton
+# enforcement, mode-customDeployment consistency), enum constraints, field defaults.
+# Run `make update` to regenerate after changing API types. DO NOT EDIT MANUALLY.
+#
+# KEY VALIDATION RULES (embedded from http01proxy_types.go):
+# - metadata.name must equal "default" (singleton pattern)
+# - mode must be "DefaultDeployment" or "CustomDeployment"
+# - customDeployment required if mode=CustomDeployment, forbidden otherwise
+# - internalPort must be 1024-65535 if specified
+
 ---
-apiVersion: apiextensions.k8s.io/v1
-kind: CustomResourceDefinition
+apiVersion: apiextensions.k8s.io/v1  # CRD is itself a Kubernetes resource (meta-API)
+kind: CustomResourceDefinition       # This defines a new resource type (HTTP01Proxy)
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.19.0

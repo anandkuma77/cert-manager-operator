@@ -1,3 +1,19 @@
+// FILE: pkg/controller/http01proxy/serviceaccounts.go
+//
+// WHAT IT DOES (max 5 lines):
+// Manages the ServiceAccount for HTTP01 proxy pods. Loads ServiceAccount template from embedded
+// YAML, applies labels, and creates/updates it in Kubernetes. ServiceAccount provides identity
+// for proxy pods - gets bound to privileged SCC via RoleBinding (created by rbacs.go) which
+// grants permissions for hostNetwork and NET_ADMIN capability. Also handles deletion during
+// HTTP01Proxy cleanup (finalizer path).
+//
+// HOW IT DOES IT (max 5 lines):
+// createOrApplyServiceAccount decodes ServiceAccount YAML from bindata/http01-proxy/cert-manager-http01-proxy-serviceaccount.yaml,
+// sets namespace to match HTTP01Proxy, applies standard labels, then calls createOrUpdateResource
+// (server-side apply). deleteServiceAccount removes ServiceAccount by name during cleanup.
+// ServiceAccount must exist before DaemonSet is created (pod spec references it), so this runs
+// early in deployment sequence (before RBAC and DaemonSet in install_http01proxy.go).
+
 package http01proxy
 
 import (

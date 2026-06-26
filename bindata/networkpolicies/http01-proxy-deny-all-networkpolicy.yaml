@@ -1,3 +1,19 @@
+# FILE: bindata/networkpolicies/http01-proxy-deny-all-networkpolicy.yaml
+#
+# WHAT IT DOES (max 5 lines):
+# NetworkPolicy implementing default-deny for HTTP01 proxy pods. Blocks ALL incoming network
+# connections to proxy pods (ingress) and would block egress except overridden by allow-egress
+# policy (NetworkPolicy is additive - most permissive rule wins). Defense-in-depth security - even
+# though proxy runs privileged, limit network attack surface. Proxy doesn't need incoming connections
+# (nftables redirects traffic locally on VIP), so deny-all ingress is safe and reduces risk.
+#
+# HOW IT DOES IT (max 5 lines):
+# Static YAML loaded by networkpolicies.go. podSelector matches proxy pods by app label. policyTypes
+# lists both Ingress and Egress, but no rules are specified under ingress[] or egress[], which means
+# DENY ALL by default. Separate allow-egress policy adds specific egress rules (ports 80,443,6443).
+# Kubernetes NetworkPolicy controller enforces at network layer (iptables/eBPF). Applied early in
+# deployment sequence to establish security baseline before proxy pods start.
+
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:

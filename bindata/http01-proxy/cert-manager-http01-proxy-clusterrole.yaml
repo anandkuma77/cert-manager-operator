@@ -1,3 +1,18 @@
+# FILE: bindata/http01-proxy/cert-manager-http01-proxy-clusterrole.yaml
+#
+# WHAT IT DOES (max 5 lines):
+# ClusterRole template defining Kubernetes API permissions for HTTP01 proxy ServiceAccount. Currently
+# grants read-only access to OpenShift config resources (ClusterVersion, Infrastructure, Ingress) -
+# these may be used by future proxy features for cluster configuration discovery. Proxy container
+# itself doesn't need K8s API access (operates at network level), so rules could be empty. Follows
+# standard RBAC pattern for consistency and future extensibility.
+#
+# HOW IT DOES IT (max 5 lines):
+# Static YAML template embedded in binary. Controller loads via rbacs.go, applies labels, creates
+# ClusterRole (cluster-scoped, no namespace). Gets bound to ServiceAccount via ClusterRoleBinding
+# (separate template). Rules allow get/list/watch on config.openshift.io resources - read-only,
+# no mutation permissions. Name hardcoded to match ClusterRoleBinding's roleRef.
+
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:

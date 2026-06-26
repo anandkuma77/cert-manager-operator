@@ -1,3 +1,19 @@
+// FILE: pkg/operator/setup_manager.go
+//
+// WHAT IT DOES (max 5 lines):
+// Registers all enabled controllers with the controller-runtime Manager based on feature
+// gate configuration. Creates HTTP01Proxy controller when FeatureHTTP01Proxy is enabled,
+// sets up its cache configuration (which resources to watch with label filters), and wires
+// it into the unified manager. This is where operator startup code decides which controllers
+// to run based on --unsupported-addon-features flags.
+//
+// HOW IT DOES IT (max 5 lines):
+// NewControllerManager checks ControllerConfig.EnableHTTP01Proxy (set by feature gate parsing
+// in starter.go). If enabled, calls setupHTTP01ProxyController which creates Reconciler via
+// http01proxy.New() and registers it with manager. Also configures cache to watch HTTP01Proxy
+// resources and managed child resources (DaemonSet, RBAC, etc.) with label selectors for
+// efficiency. Feature gate disabled = controller never starts, HTTP01Proxy CRD stays unused.
+
 package operator
 
 import (

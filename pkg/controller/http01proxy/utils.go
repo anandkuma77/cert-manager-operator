@@ -1,3 +1,19 @@
+// FILE: pkg/controller/http01proxy/utils.go
+//
+// WHAT IT DOES (max 5 lines):
+// Utility functions for HTTP01Proxy controller: status updates, finalizer management, resource
+// creation/update/deletion helpers, and port configuration. Provides reusable logic for updating
+// HTTP01Proxy status conditions (Available/Degraded), managing finalizers (add/remove during
+// lifecycle), and common CRUD operations on Kubernetes resources. Centralizes boilerplate code
+// to keep main controller files focused on business logic.
+//
+// HOW IT DOES IT (max 5 lines):
+// updateCondition persists status to API server using status subresource. addFinalizer/removeFinalizer
+// modify metadata.finalizers array (blocks deletion until cleanup completes). createOrUpdateResource
+// uses server-side apply semantics (create if missing, update if exists). deleteIfExists is idempotent
+// (succeeds if resource already gone). getInternalPort reads port from HTTP01Proxy spec or returns
+// default 8888. All functions handle errors gracefully and return typed errors for retry logic.
+
 package http01proxy
 
 import (

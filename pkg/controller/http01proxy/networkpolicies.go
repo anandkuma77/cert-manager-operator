@@ -1,3 +1,19 @@
+// FILE: pkg/controller/http01proxy/networkpolicies.go
+//
+// WHAT IT DOES (max 5 lines):
+// Manages NetworkPolicies for HTTP01 proxy pods implementing defense-in-depth security. Deploys
+// two policies: deny-all ingress (blocks all incoming connections - proxy doesn't need any) and
+// allow-egress on ports 80,443,6443 (proxy needs to forward to Ingress VIP on port 80, and may
+// need HTTPS/K8s API access). Reduces attack surface even though proxy runs privileged - if proxy
+// container is compromised, network policies limit lateral movement.
+//
+// HOW IT DOES IT (max 5 lines):
+// createOrApplyNetworkPolicies loops through http01ProxyNetworkPolicyAssets array (two YAML files
+// in bindata/networkpolicies/), decodes each template, applies labels, and creates/updates them.
+// Deny-all policy matches proxy pods by label selector and blocks all ingress. Allow-egress policy
+// permits outbound on specific ports only (least privilege). deleteNetworkPolicies removes both
+// during cleanup. Runs first in deployment sequence (no dependencies, establishes security baseline).
+
 package http01proxy
 
 import (

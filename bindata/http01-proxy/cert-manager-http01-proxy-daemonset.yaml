@@ -1,3 +1,19 @@
+# FILE: bindata/http01-proxy/cert-manager-http01-proxy-daemonset.yaml
+#
+# WHAT IT DOES (max 5 lines):
+# DaemonSet template defining how proxy pods run. Key configurations: hostNetwork: true (access VIP),
+# nodeSelector for master nodes (VIP floats between masters), NET_ADMIN capability (nftables manipulation),
+# privileged securityContext (required for host network access), resource limits, and container ports.
+# Controller loads this template, injects proxy image and port from HTTP01Proxy spec, and potentially
+# VIP addresses as environment variables, then deploys to cluster.
+#
+# HOW IT DOES IT (max 5 lines):
+# Static YAML embedded in binary. daemonsets.go decodes this, sets image (from RELATED_IMAGE_* env var),
+# updates ports (8888 or custom), applies labels, and creates DaemonSet. hostNetwork: true makes pod
+# share host's network namespace (can bind to VIP). nodeSelector + tolerations ensure pods run only
+# on master nodes (where API VIP exists). SecurityContext with privileged: true and NET_ADMIN grants
+# permissions to modify network rules. One pod per master provides HA (VIP can fail over).
+
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:

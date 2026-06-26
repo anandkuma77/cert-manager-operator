@@ -1,3 +1,19 @@
+# FILE: bindata/http01-proxy/cert-manager-http01-proxy-clusterrolebinding.yaml
+#
+# WHAT IT DOES (max 5 lines):
+# ClusterRoleBinding template that binds the cert-manager-http01-proxy ServiceAccount to the
+# cert-manager-http01-proxy ClusterRole. This grants the proxy ServiceAccount the read-only
+# permissions defined in the ClusterRole (access to ClusterVersion, Infrastructure, Ingress
+# resources). Standard RBAC binding pattern - connects identity (ServiceAccount) to permissions
+# (ClusterRole rules).
+#
+# HOW IT DOES IT (max 5 lines):
+# Static YAML embedded in binary. Controller loads via rbacs.go, applies labels, creates binding
+# (cluster-scoped). References ServiceAccount by name in subjects[] (cert-manager-http01-proxy
+# in cert-manager-operator namespace) and ClusterRole by name in roleRef (cert-manager-http01-proxy).
+# Once created, ServiceAccount inherits ClusterRole permissions. Controller dynamically sets
+# namespace to match HTTP01Proxy when applying.
+
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:

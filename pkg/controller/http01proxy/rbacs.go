@@ -1,3 +1,19 @@
+// FILE: pkg/controller/http01proxy/rbacs.go
+//
+// WHAT IT DOES (max 5 lines):
+// Manages RBAC resources for HTTP01 proxy: ClusterRole, ClusterRoleBinding, and SCC RoleBinding.
+// ClusterRole is empty (proxy doesn't need Kubernetes API access) but follows standard pattern.
+// ClusterRoleBinding binds ServiceAccount to ClusterRole. Most importantly, SCC RoleBinding binds
+// ServiceAccount to OpenShift's privileged SCC, granting permission to use hostNetwork and NET_ADMIN
+// capability (required for nftables manipulation and VIP traffic interception).
+//
+// HOW IT DOES IT (max 5 lines):
+// createOrApplyRBACResources loads three YAML templates from bindata/, applies labels, and creates/
+// updates them: ClusterRole (empty rules), ClusterRoleBinding (binds SA to ClusterRole), and
+// RoleBinding (binds SA to system:openshift:scc:privileged). The SCC binding is THE critical one -
+// without it, OpenShift blocks pods from using hostNetwork. deleteRBACResources removes all three
+// during cleanup. Must run after ServiceAccount creation, before DaemonSet.
+
 package http01proxy
 
 import (

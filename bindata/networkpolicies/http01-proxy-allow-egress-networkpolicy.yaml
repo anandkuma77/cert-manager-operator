@@ -1,3 +1,19 @@
+# FILE: bindata/networkpolicies/http01-proxy-allow-egress-networkpolicy.yaml
+#
+# WHAT IT DOES (max 5 lines):
+# NetworkPolicy allowing outbound traffic from proxy pods on specific ports only. Permits egress
+# on port 80 (forward ACME requests to Ingress VIP), 443 (HTTPS for potential external calls), and
+# 6443 (Kubernetes API server). Implements least-privilege networking - proxy can only reach services
+# it needs, blocking all other outbound connections. Works with deny-all policy (deny-all blocks
+# everything, this policy adds specific exceptions).
+#
+# HOW IT DOES IT (max 5 lines):
+# Static YAML loaded by networkpolicies.go. podSelector matches proxy pods. egress[] lists allowed
+# ports (80, 443, 6443 TCP). No destination restrictions (to: []) means can reach any IP on these
+# ports. Kubernetes NetworkPolicy controller allows these specific flows while deny-all blocks
+# everything else. Port 80 is essential (proxy's job is forwarding to Ingress VIP:80), others are
+# defensive (allow potential needs without opening all ports).
+
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
