@@ -107,7 +107,8 @@ func withContainerArgsOverrideHook(certmanagerinformer certmanagerinformer.CertM
 }
 
 // withContainerEnvOverrideHook verrides the container env with those provided by
-// the overrideEnvFunc function.
+// the overrideEnvFunc function. Override env variables take precedence and will not
+// be overwritten by other env sources (e.g., cluster-wide proxy settings).
 func withContainerEnvOverrideHook(certmanagerinformer certmanagerinformer.CertManagerInformer, deploymentName string, fn overrideEnvFunc) func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
 	return func(operatorSpec *operatorv1.OperatorSpec, deployment *appsv1.Deployment) error {
 		overrideEnv, err := fn(certmanagerinformer, deploymentName)
@@ -116,8 +117,13 @@ func withContainerEnvOverrideHook(certmanagerinformer certmanagerinformer.CertMa
 		}
 
 		if overrideEnv != nil && len(overrideEnv) > 0 && len(deployment.Spec.Template.Spec.Containers) == 1 && deployment.Name == deploymentName {
-			deployment.Spec.Template.Spec.Containers[0].Env = mergeContainerEnvs(
-				deployment.Spec.Template.Spec.Containers[0].Env, overrideEnv)
+			// Collect override env variable names to protect them from being overwritten
+			precedenceKeys := make([]string, len(overrideEnv))
+			for i, env := range overrideEnv {
+				precedenceKeys[i] = env.Name
+			}
+			deployment.Spec.Template.Spec.Containers[0].Env = mergeContainerEnvsWithPrecedence(
+				deployment.Spec.Template.Spec.Containers[0].Env, overrideEnv, precedenceKeys)
 		}
 		return nil
 	}

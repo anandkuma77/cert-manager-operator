@@ -1,9 +1,11 @@
 package deployment
 
 import (
+	"reflect"
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/operator/clientset/versioned/fake"
 	certmanoperatorinformer "github.com/openshift/cert-manager-operator/pkg/operator/informers/externalversions"
@@ -1144,6 +1146,93 @@ func TestGetOverrideReplicasFor(t *testing.T) {
 			case <-certManagerChan:
 			case <-time.After(wait.ForeverTestTimeout):
 				t.Fatal("Informer did not get the deleted cert manager")
+			}
+		})
+	}
+}
+func TestMergeContainerEnvsWithPrecedence(t *testing.T) {
+	tests := []struct {
+		name           string
+		sourceEnvs     []corev1.EnvVar
+		overrideEnvs   []corev1.EnvVar
+		precedenceKeys []string
+		expectedEnvs   []corev1.EnvVar
+	}{
+		{
+			name: "source overwrites override when no precedence keys specified",
+			sourceEnvs: []corev1.EnvVar{
+				{Name: "HTTP_PROXY", Value: "http://source-proxy:3128"},
+				{Name: "PATH", Value: "/usr/bin"},
+			},
+			overrideEnvs: []corev1.EnvVar{
+				{Name: "HTTP_PROXY", Value: "http://override-proxy:8080"},
+			},
+			precedenceKeys: []string{},
+			expectedEnvs: []corev1.EnvVar{
+				{Name: "HTTP_PROXY", Value: "http://source-proxy:3128"},
+				{Name: "PATH", Value: "/usr/bin"},
+			},
+		},
+		{
+			name: "precedence env is protected from being overwritten by source",
+			sourceEnvs: []corev1.EnvVar{
+				{Name: "HTTP_PROXY", Value: "http://source-proxy:3128"},
+				{Name: "HTTPS_PROXY", Value: "https://source-proxy:3128"},
+				{Name: "PATH", Value: "/usr/bin"},
+			},
+			overrideEnvs: []corev1.EnvVar{
+				{Name: "HTTP_PROXY", Value: "http://override-proxy:8080"},
+			},
+			precedenceKeys: []string{"HTTP_PROXY"},
+			expectedEnvs: []corev1.EnvVar{
+				{Name: "HTTPS_PROXY", Value: "https://source-proxy:3128"},
+				{Name: "HTTP_PROXY", Value: "http://override-proxy:8080"},
+				{Name: "PATH", Value: "/usr/bin"},
+			},
+		},
+		{
+			name: "proxy override env takes precedence over cluster proxy",
+			sourceEnvs: []corev1.EnvVar{
+				{Name: "HTTP_PROXY", Value: "http://cluster-proxy.example.com:3128"},
+				{Name: "HTTPS_PROXY", Value: "https://cluster-proxy.example.com:3128"},
+				{Name: "NO_PROXY", Value: "kubernetes.default,localhost"},
+			},
+			overrideEnvs: []corev1.EnvVar{
+				{Name: "HTTP_PROXY", Value: "http://custom-proxy.example.com:8080"},
+				{Name: "HTTPS_PROXY", Value: "https://custom-proxy.example.com:8080"},
+			},
+			precedenceKeys: []string{"HTTP_PROXY", "HTTPS_PROXY"},
+			expectedEnvs: []corev1.EnvVar{
+				{Name: "HTTPS_PROXY", Value: "https://custom-proxy.example.com:8080"},
+				{Name: "HTTP_PROXY", Value: "http://custom-proxy.example.com:8080"},
+				{Name: "NO_PROXY", Value: "kubernetes.default,localhost"},
+			},
+		},
+		{
+			name: "multiple precedence keys protected from source overwrite",
+			sourceEnvs: []corev1.EnvVar{
+				{Name: "VAR_A", Value: "source_a"},
+				{Name: "VAR_B", Value: "source_b"},
+				{Name: "VAR_C", Value: "source_c"},
+			},
+			overrideEnvs: []corev1.EnvVar{
+				{Name: "VAR_A", Value: "override_a"},
+				{Name: "VAR_B", Value: "override_b"},
+			},
+			precedenceKeys: []string{"VAR_A", "VAR_B"},
+			expectedEnvs: []corev1.EnvVar{
+				{Name: "VAR_A", Value: "override_a"},
+				{Name: "VAR_B", Value: "override_b"},
+				{Name: "VAR_C", Value: "source_c"},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			actual := mergeContainerEnvsWithPrecedence(tc.sourceEnvs, tc.overrideEnvs, tc.precedenceKeys)
+			if !reflect.DeepEqual(actual, tc.expectedEnvs) {
+				t.Fatalf("mergeContainerEnvsWithPrecedence() mismatch:\n%s", cmp.Diff(tc.expectedEnvs, actual))
 			}
 		})
 	}

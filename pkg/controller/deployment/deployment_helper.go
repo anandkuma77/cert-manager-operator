@@ -40,11 +40,48 @@ func mergeContainerArgs(sourceArgs []string, overrideArgs []string) (destArgs []
 }
 
 // mergeContainerEnvs merges source container env variables with those
-// provided as override env variables.
+// provided as override env variables. Override variables take precedence over source variables.
 func mergeContainerEnvs(sourceEnvs []corev1.EnvVar, overrideEnvs []corev1.EnvVar) []corev1.EnvVar {
 	destEnvsMap := map[string]corev1.EnvVar{}
 	parseEnvMap(destEnvsMap, sourceEnvs)
 	parseEnvMap(destEnvsMap, overrideEnvs)
+
+	keys := make([]string, 0)
+	for k := range destEnvsMap {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	destEnvs := make([]corev1.EnvVar, 0)
+	for _, k := range keys {
+		destEnvs = append(destEnvs, destEnvsMap[k])
+	}
+	return destEnvs
+}
+
+// mergeContainerEnvsWithPrecedence merges source container env variables with those provided
+// as override env variables. The precedence parameter specifies which env var names should
+// not be overwritten by source variables (e.g., user-specified OverrideEnv should not be
+// overwritten by cluster-wide proxy settings).
+func mergeContainerEnvsWithPrecedence(sourceEnvs []corev1.EnvVar, overrideEnvs []corev1.EnvVar, precedenceKeys []string) []corev1.EnvVar {
+	destEnvsMap := map[string]corev1.EnvVar{}
+	precedenceSet := map[string]bool{}
+	for _, key := range precedenceKeys {
+		precedenceSet[key] = true
+	}
+
+	// First, add override envs (highest precedence)
+	parseEnvMap(destEnvsMap, overrideEnvs)
+
+	// Then, add source envs (but don't overwrite entries marked for precedence)
+	for _, env := range sourceEnvs {
+		if _, exists := destEnvsMap[env.Name]; !exists {
+			destEnvsMap[env.Name] = env
+		} else if !precedenceSet[env.Name] {
+			// Only overwrite if the key is not marked for precedence
+			destEnvsMap[env.Name] = env
+		}
+	}
 
 	keys := make([]string, 0)
 	for k := range destEnvsMap {
