@@ -5,10 +5,12 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/openshift/library-go/pkg/operator/resource/resourceread"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/openshift/cert-manager-operator/api/operator/v1alpha1"
 	"github.com/openshift/cert-manager-operator/pkg/operator/assets"
@@ -394,4 +396,58 @@ func TestParseArgMap(t *testing.T) {
 	if !reflect.DeepEqual(argMap, wantMap) {
 		t.Fatalf("unexpected update to arg map, diff = %v", cmp.Diff(wantMap, argMap))
 	}
+}
+
+// TestWithProxyEnvUserOverrideTakesPrecedence verifies that user-specified proxy
+// env vars in overrideEnv take precedence over cluster-wide proxy settings when
+// withProxyEnv runs before withContainerEnvOverrideHook (the corrected hook order).
+func TestWithProxyEnvUserOverrideTakesPrecedence(t *testing.T) {
+	t.Setenv("HTTP_PROXY", "http://cluster-proxy.example.com:3128")
+	t.Setenv("HTTPS_PROXY", "https://cluster-proxy.example.com:3128")
+	t.Setenv("NO_PROXY", "cluster.local")
+
+	deployment := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{Name: certmanagerControllerDeployment},
+		Spec: appsv1.DeploymentSpec{
+			Template: corev1.PodTemplateSpec{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{Name: "cert-manager"},
+					},
+				},
+			},
+		},
+	}
+
+	// Step 1: withProxyEnv runs first and injects cluster-wide proxy values.
+	err := withProxyEnv(&operatorv1.OperatorSpec{}, deployment)
+	require.NoError(t, err)
+
+	// Confirm cluster proxy values are set.
+	envMap := make(map[string]string)
+	for _, e := range deployment.Spec.Template.Spec.Containers[0].Env {
+		envMap[e.Name] = e.Value
+	}
+	require.Equal(t, "http://cluster-proxy.example.com:3128", envMap["HTTP_PROXY"])
+
+	// Step 2: user-specified overrideEnv runs after withProxyEnv (via mergeContainerEnvs,
+	// which is what withContainerEnvOverrideHook uses internally) and takes precedence.
+	userOverrideEnv := []corev1.EnvVar{
+		{Name: "HTTP_PROXY", Value: "http://user-proxy.example.com:8080"},
+		{Name: "HTTPS_PROXY", Value: "https://user-proxy.example.com:8080"},
+		{Name: "NO_PROXY", Value: "localhost,127.0.0.1"},
+	}
+	deployment.Spec.Template.Spec.Containers[0].Env = mergeContainerEnvs(
+		deployment.Spec.Template.Spec.Containers[0].Env,
+		userOverrideEnv,
+	)
+
+	// User-specified values must win over cluster proxy values.
+	finalEnvMap := make(map[string]string)
+	for _, e := range deployment.Spec.Template.Spec.Containers[0].Env {
+		finalEnvMap[e.Name] = e.Value
+	}
+	require.Equal(t, "http://user-proxy.example.com:8080", finalEnvMap["HTTP_PROXY"], "user HTTP_PROXY should override cluster proxy")
+	require.Equal(t, "https://user-proxy.example.com:8080", finalEnvMap["HTTPS_PROXY"], "user HTTPS_PROXY should override cluster proxy")
+	require.Equal(t, "localhost,127.0.0.1", finalEnvMap["NO_PROXY"], "user NO_PROXY should override cluster proxy")
 }
