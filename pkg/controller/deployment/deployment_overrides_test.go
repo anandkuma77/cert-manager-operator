@@ -221,6 +221,113 @@ func TestUnsupportedConfigOverrides(t *testing.T) {
 	}
 }
 
+func TestWithProxyEnv(t *testing.T) {
+	tests := []struct {
+		name        string
+		proxyEnv    map[string]string
+		initialEnv  []corev1.EnvVar
+		expectedEnv []corev1.EnvVar
+	}{
+		{
+			name: "cluster proxy vars are injected into deployment",
+			proxyEnv: map[string]string{
+				"HTTP_PROXY":  "http://cluster-proxy:3128",
+				"HTTPS_PROXY": "https://cluster-proxy:3128",
+				"NO_PROXY":    ".cluster.local",
+			},
+			initialEnv: []corev1.EnvVar{
+				{Name: "POD_NAMESPACE", Value: "cert-manager"},
+			},
+			expectedEnv: []corev1.EnvVar{
+				{Name: "HTTPS_PROXY", Value: "https://cluster-proxy:3128"},
+				{Name: "HTTP_PROXY", Value: "http://cluster-proxy:3128"},
+				{Name: "NO_PROXY", Value: ".cluster.local"},
+				{Name: "POD_NAMESPACE", Value: "cert-manager"},
+				{Name: "http_proxy", Value: "http://cluster-proxy:3128"},
+				{Name: "https_proxy", Value: "https://cluster-proxy:3128"},
+				{Name: "no_proxy", Value: ".cluster.local"},
+			},
+		},
+		{
+			name:     "no proxy env set leaves deployment unchanged",
+			proxyEnv: map[string]string{},
+			initialEnv: []corev1.EnvVar{
+				{Name: "POD_NAMESPACE", Value: "cert-manager"},
+			},
+			expectedEnv: []corev1.EnvVar{
+				{Name: "POD_NAMESPACE", Value: "cert-manager"},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			for k, v := range tc.proxyEnv {
+				t.Setenv(k, v)
+			}
+
+			deployment := &appsv1.Deployment{}
+			deployment.Spec.Template.Spec.Containers = []corev1.Container{
+				{Env: append([]corev1.EnvVar{}, tc.initialEnv...)},
+			}
+
+			err := withProxyEnv(nil, deployment)
+			require.NoError(t, err)
+			require.Equal(t, tc.expectedEnv, deployment.Spec.Template.Spec.Containers[0].Env)
+		})
+	}
+}
+
+func TestUserOverrideEnvTakesPrecedenceOverClusterProxy(t *testing.T) {
+	t.Setenv("HTTP_PROXY", "http://cluster-proxy:3128")
+	t.Setenv("HTTPS_PROXY", "https://cluster-proxy:3128")
+	t.Setenv("NO_PROXY", ".cluster.local")
+
+	deployment := &appsv1.Deployment{}
+	deployment.Spec.Template.Spec.Containers = []corev1.Container{
+		{Env: []corev1.EnvVar{
+			{Name: "POD_NAMESPACE", Value: "cert-manager"},
+		}},
+	}
+
+	userOverrideEnv := []corev1.EnvVar{
+		{Name: "HTTP_PROXY", Value: "http://custom-proxy.example.com:8080"},
+		{Name: "HTTPS_PROXY", Value: "https://custom-proxy.example.com:8080"},
+		{Name: "NO_PROXY", Value: "localhost,127.0.0.1"},
+	}
+
+	// Step 1: withProxyEnv runs first (injects cluster proxy as base)
+	err := withProxyEnv(nil, deployment)
+	require.NoError(t, err)
+
+	// Step 2: withContainerEnvOverrideHook merges user overrides on top
+	deployment.Spec.Template.Spec.Containers[0].Env = mergeContainerEnvs(
+		deployment.Spec.Template.Spec.Containers[0].Env, userOverrideEnv)
+
+	env := deployment.Spec.Template.Spec.Containers[0].Env
+	envMap := map[string]string{}
+	for _, e := range env {
+		envMap[e.Name] = e.Value
+	}
+
+	// User-specified values must take precedence over cluster proxy
+	require.Equal(t, "http://custom-proxy.example.com:8080", envMap["HTTP_PROXY"],
+		"user HTTP_PROXY should override cluster proxy")
+	require.Equal(t, "https://custom-proxy.example.com:8080", envMap["HTTPS_PROXY"],
+		"user HTTPS_PROXY should override cluster proxy")
+	require.Equal(t, "localhost,127.0.0.1", envMap["NO_PROXY"],
+		"user NO_PROXY should override cluster proxy")
+
+	// Lower-case proxy vars from cluster should still be present
+	// (user only specified upper-case)
+	require.Equal(t, "http://cluster-proxy:3128", envMap["http_proxy"],
+		"lower-case http_proxy should retain cluster value when user only overrides upper-case")
+	require.Equal(t, "https://cluster-proxy:3128", envMap["https_proxy"],
+		"lower-case https_proxy should retain cluster value when user only overrides upper-case")
+	require.Equal(t, ".cluster.local", envMap["no_proxy"],
+		"lower-case no_proxy should retain cluster value when user only overrides upper-case")
+}
+
 func TestParseEnvMap(t *testing.T) {
 	env := mergeContainerEnvs([]corev1.EnvVar{
 		{
